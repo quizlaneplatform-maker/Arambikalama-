@@ -1,4 +1,4 @@
-// Shared helpers for all Quizlane pages.
+// Shared helpers for all Aarambikallama pages.
 
 /** Build a DOM element. Text children are inserted as text (never parsed as HTML). */
 function h(tag, props, ...children) {
@@ -99,4 +99,4 @@ function toast(msg, ms = 2600) {
 
 const fmtDate = (ms) => new Date(ms).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
 const qs = (name) => new URLSearchParams(location.search).get(name);
-const topbar = (right) => h("header", { class: "topbar" }, h("a", { class: "logo", href: "/" }, "Quiz", h("span", null, "lane")), right);
+const topbar = (right) => h("header", { class: "topbar" }, h("a", { class: "logo", href: "/" }, "Aarambi", h("span", null, "kallama")), right);

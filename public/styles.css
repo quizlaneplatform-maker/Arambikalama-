@@ -1,4 +1,4 @@
-/* Quizlane — visual language: deep blackberry + warm oat, magenta calls to action, pastel tiles.
+/* Aarambikallama — visual language: deep blackberry + warm oat, magenta calls to action, pastel tiles.
    Light "oat" theme by default; pages that are game screens add <body class="theme-dark">. */
 :root {
   /* palette */
@@ -111,7 +111,7 @@ code { background: var(--surface-2); padding: 0.1rem 0.4rem; border-radius: 4px;
 .logo { display: inline-flex; align-items: center; font-weight: 800; font-size: 1.45rem; color: var(--oat); text-decoration: none; letter-spacing: -0.05em; }
 .logo:hover { color: var(--oat); }
 .logo::before {
-  content: "Q"; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 8px; margin-right: 0.5rem;
+  content: "A"; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 8px; margin-right: 0.5rem;
   background: var(--magenta); color: #fff; font-size: 1.15rem; letter-spacing: 0; transform: rotate(-6deg);
 }
 .logo span { color: var(--magenta); }
@@ -446,4 +446,11 @@ html[data-mode="dark"] .topbar { border-bottom: 1px solid var(--dark-line); }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* Longer brand name: keep the header on one line on phones */
+.topbar .nav-link, .topbar .btn { white-space: nowrap; }
+@media (max-width: 420px) {
+  .logo { font-size: 1.15rem; }
+  .logo::before { width: 28px; height: 28px; margin-right: 0.4rem; }
 }

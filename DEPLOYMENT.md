@@ -1,6 +1,6 @@
-# Deploying Quizlane
+# Deploying Aarambikallama
 
-Quizlane is one Node.js process that serves the website, the API and the live-game WebSockets. It stores its data as JSON files. That shapes where it can run:
+Aarambikallama is one Node.js process that serves the website, the API and the live-game WebSockets. It stores its data as JSON files. That shapes where it can run:
 
 | Needs | Why |
 |---|---|
@@ -22,9 +22,9 @@ Quizlane is one Node.js process that serves the website, the API and the live-ga
    ```bash
    git init
    git add .
-   git commit -m "Quizlane"
+   git commit -m "Aarambikallama"
    # create an empty repo on github.com, then:
-   git remote add origin https://github.com/<you>/quizlane.git
+   git remote add origin https://github.com/<you>/aarambikallama.git
    git branch -M main
    git push -u origin main
    ```
@@ -53,12 +53,12 @@ Quizlane is one Node.js process that serves the website, the API and the live-ga
    SMTP_PORT=465
    SMTP_USER=yourname@gmail.com
    SMTP_PASS=your16charapppassword
-   MAIL_FROM=Quizlane <yourname@gmail.com>
+   MAIL_FROM=Aarambikallama <yourname@gmail.com>
    XAI_API_KEY=xai-...          (optional)
    ```
 5. **Create Web Service.** In the deploy log, look for:
    ```
-   Quizlane running at http://localhost:10000
+   Aarambikallama running at http://localhost:10000
      Login codes: emailed via smtp.gmail.com as yourname@gmail.com
    ```
 6. Your app is live at `https://<name>.onrender.com`. Keep the instance count at **1** (no autoscaling).
@@ -76,18 +76,18 @@ Quizlane is one Node.js process that serves the website, the API and the live-ga
 On Ubuntu with Node 22 installed:
 
 ```bash
-git clone https://github.com/<you>/quizlane.git /opt/quizlane
-cd /opt/quizlane && npm ci --omit=dev
-sudo mkdir -p /var/lib/quizlane && sudo chown $USER /var/lib/quizlane
+git clone https://github.com/<you>/aarambikallama.git /opt/aarambikallama
+cd /opt/aarambikallama && npm ci --omit=dev
+sudo mkdir -p /var/lib/aarambikallama && sudo chown $USER /var/lib/aarambikallama
 cp .env.example .env   # fill in SMTP_*, XAI_API_KEY, then add:
 #   NODE_ENV=production
-#   DATA_DIR=/var/lib/quizlane
+#   DATA_DIR=/var/lib/aarambikallama
 ```
 
 Keep it running with **pm2**:
 ```bash
 sudo npm i -g pm2
-pm2 start npm --name quizlane -- start
+pm2 start npm --name aarambikallama -- start
 pm2 save && pm2 startup     # restart on reboot
 ```
 
@@ -114,7 +114,7 @@ quiz.yourschool.org {
 ## Email setup (Gmail)
 
 1. https://myaccount.google.com/security → turn on **2-Step Verification**.
-2. https://myaccount.google.com/apppasswords → create one named "Quizlane" → copy the 16 characters (no spaces).
+2. https://myaccount.google.com/apppasswords → create one named "Aarambikallama" → copy the 16 characters (no spaces).
 3. Use it as `SMTP_PASS`, with `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=465` and `SMTP_USER` = that Gmail address.
 
 Other providers: Outlook `smtp-mail.outlook.com:587`, Yahoo `smtp.mail.yahoo.com:465`, Brevo `smtp-relay.brevo.com:587`. Gmail sends about 500 emails a day. For a whole school, use a sending service such as Brevo, Resend or SendGrid.
@@ -128,7 +128,7 @@ Other providers: Outlook `smtp-mail.outlook.com:587`, Yahoo `smtp.mail.yahoo.com
 | `NODE_ENV` | ✅ `production` | Secure cookies, HSTS, trusts the host's proxy, requires email |
 | `DATA_DIR` | ✅ | Path on the persistent disk, e.g. `/data` |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | ✅ | Email for login codes |
-| `MAIL_FROM` | recommended | Sender shown in the inbox, e.g. `Quizlane <you@gmail.com>` |
+| `MAIL_FROM` | recommended | Sender shown in the inbox, e.g. `Aarambikallama <you@gmail.com>` |
 | `XAI_API_KEY` | optional | Turns on AI question generation |
 | `XAI_MODEL` | optional | Grok model (default `grok-4.7`) |
 | `PORT` | set by host | Port to listen on (default 3000) |

@@ -158,5 +158,5 @@
   }
   document.readyState === "loading" ? document.addEventListener("DOMContentLoaded", mount) : mount();
 
-  window.QuizlaneTheme = { THEMES, get: () => ({ ...state }), set };
+  window.AarambikallamaTheme = { THEMES, get: () => ({ ...state }), set };
 })();

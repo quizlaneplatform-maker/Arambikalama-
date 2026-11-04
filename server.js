@@ -1,4 +1,4 @@
-// Quizlane server: REST API for quizzes/reports + Socket.IO for live and self-paced games.
+// Aarambikallama server: REST API for quizzes/reports + Socket.IO for live and self-paced games.
 const path = require("path");
 const os = require("os");
 const crypto = require("crypto");
@@ -568,7 +568,7 @@ io.on("connection", (socket) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Quizlane running at http://localhost:${PORT}`);
+  console.log(`Aarambikallama running at http://localhost:${PORT}`);
   console.log(aiEnabled() ? "  AI question generation: on (Grok)" : "  AI question generation: off (set XAI_API_KEY in .env)");
   checkMail();
   for (const addrs of Object.values(os.networkInterfaces()))
