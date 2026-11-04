@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Host · Quizlane</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400..800;1,9..40,400&family=Kalam:wght@400;700&display=swap" />
+  <link rel="stylesheet" href="/styles.css" />
+  <script src="/theme.js"></script>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%23ff319f%27/%3E%3Ctext x=%2716%27 y=%2723%27 font-size=%2720%27 font-family=%27sans-serif%27 font-weight=%27800%27 fill=%27white%27 text-anchor=%27middle%27%3EQ%3C/text%3E%3C/svg%3E" />
+</head>
+<body class="theme-dark">
+  <div id="top"></div>
+  <main class="wrap" id="app"><p class="muted">Connecting…</p></main>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/common.js"></script>
+  <script>
+    const app = document.getElementById("app");
+    const endBtn = h("button", { class: "btn-danger btn-sm hidden", onclick: () => confirm("End the game for everyone?") && socket.emit("host:end") }, "End game");
+    document.getElementById("top").replaceWith(topbar(h("div", { class: "row" }, endBtn, h("a", { class: "btn btn-ghost btn-sm", href: "/dashboard.html" }, "Dashboard"))));
+
+    const socket = io();
+    let stopTimer = () => {};
+    const fail = (msg) => app.replaceChildren(h("div", { class: "card stack" }, h("h2", null, msg), h("a", { class: "btn", href: "/dashboard.html" }, "Back to dashboard")));
+
+    // Create a new game, or resume the one in the URL after a refresh/reconnect.
+    socket.on("connect", () => {
+      const code = qs("code");
+      if (code) {
+        socket.emit("host:resume", { code, hostKey: sessionStorage.getItem(`host:${code}`) }, (res) => {
+          if (res.error) return fail(res.error);
+          if (res.hostKey) sessionStorage.setItem(`host:${code}`, res.hostKey);
+        });
+      } else {
+        socket.emit("host:create", { quizId: qs("quiz"), mode: qs("mode") }, (res) => {
+          if (res.needLogin) return goToLogin();
+          if (res.error) return fail(res.error);
+          sessionStorage.setItem(`host:${res.code}`, res.hostKey);
+          history.replaceState(null, "", `/host.html?code=${res.code}`);
+        });
+      }
+    });
+
+    socket.on("state", (s) => {
+      stopTimer();
+      endBtn.classList.toggle("hidden", s.status === "lobby" || s.status === "finished");
+      document.title = `${s.code} · ${s.quizTitle} · Quizlane`;
+      if (s.status === "lobby") return lobby(s);
+      if (s.status === "finished") return finished(s);
+      if (s.mode === "self") return selfPaced(s);
+      return live(s);
+    });
+
+    const joinUrl = () => `${location.origin}/play.html`;
+
+    function playerChips(s, kickable) {
+      if (!s.players.length) return h("p", { class: "muted" }, "Waiting for players to join…");
+      return h("div", { class: "chips" },
+        s.players.map((p) =>
+          h("span", { class: `chip${p.connected ? "" : " off"}`, title: p.connected ? "" : "Disconnected" }, p.name,
+            kickable && h("button", { title: `Remove ${p.name}`, onclick: () => socket.emit("host:kick", { playerId: p.id }) }, "✕"))));
+    }
+
+    function lobby(s) {
+      app.replaceChildren(
+        h("div", { class: "stack" },
+          h("div", { class: "card code-box stack" },
+            h("div", null, h("span", { class: "pill" }, s.mode === "live" ? "Live game" : "Self-paced"), " ", h("strong", null, s.quizTitle)),
+            h("div", { class: "muted" }, "Go to ", h("strong", null, location.host), " and enter the code"),
+            h("div", { class: "code-big" }, s.code),
+            h("div", { class: "row", style: "justify-content:center" },
+              h("a", { class: "small", href: `${joinUrl()}?code=${s.code}`, target: "_blank" }, `${joinUrl()}?code=${s.code}`),
+              h("button", { class: "btn-sm", style: "background:rgba(255,255,255,.2);box-shadow:none", onclick: () => navigator.clipboard?.writeText(`${joinUrl()}?code=${s.code}`).then(() => toast("Join link copied"), () => toast("Couldn't copy link")) }, "Copy link")),
+          ),
+          h("div", { class: "card stack" },
+            h("div", { class: "row spread" },
+              h("div", null, h("h3", { style: "margin:0" }, `${s.players.length} player${s.players.length === 1 ? "" : "s"}`), h("span", { class: "muted small" }, s.players.length ? "Click ✕ to remove a player" : "Share the code to get started")),
+              h("button", { class: "btn-big", disabled: !s.players.length, onclick: () => socket.emit("host:start") }, s.mode === "live" ? "Start game" : "Start practice")),
+            playerChips(s, true),
+          ),
+        ),
+      );
+    }
+
+    function live(s) {
+      const q = s.question;
+      const revealing = s.status === "reveal";
+      const timer = timerBar(q.remainingMs, q.timeLimit * 1000);
+      const isLast = q.index === s.total - 1;
+      app.replaceChildren(
+        h("div", { class: "stack" },
+          h("div", { class: "row spread" },
+            h("span", { class: "pill" }, `Question ${q.index + 1} of ${s.total}`),
+            h("span", { class: "muted" }, `Code ${s.code}`),
+            h("strong", null, revealing ? "Answers" : `${s.answeredCount} / ${s.players.filter((p) => p.connected).length} answered`)),
+          !revealing && timer.el,
+          !revealing && s.waitingFor?.length ? h("p", { class: "muted", style: "text-align:center;margin:0" }, "⏳ Waiting for ", h("strong", null, s.waitingFor.join(", ")), " to answer before revealing") : null,
+          h("div", { class: "question-text" }, q.text),
+          h("div", { class: "options" },
+            q.options.map((o, i) =>
+              h("div", { class: `opt opt-${i}${revealing && i !== q.correctIndex ? " dim" : ""}` },
+                h("span", { class: "shape" }, SHAPES[i]), o,
+                revealing ? h("span", { class: "bar-count" }, `${s.distribution[i]}${i === q.correctIndex ? " ✓" : ""}`) : null))),
+          h("div", { class: "row", style: "justify-content:flex-end" },
+            h("button", { class: "btn-big", onclick: () => socket.emit("host:next") }, revealing ? (isLast ? "Show final results" : "Next question →") : "Reveal answer now")),
+          revealing && leaderboardCard(s.players.slice(0, 5), "Top 5"),
+        ),
+      );
+      if (!revealing) stopTimer = timer.start();
+    }
+
+    function leaderboardCard(players, title, showProgress, total, kickable = true) {
+      return h("div", { class: "card" },
+        h("h3", null, title),
+        h("table", null,
+          h("thead", null, h("tr", null, h("th", null, "#"), h("th", null, "Player"),
+            showProgress && h("th", null, "Progress"), h("th", { class: "num" }, "Correct"), h("th", { class: "num" }, "Score"), kickable && h("th", null, ""))),
+          h("tbody", null, players.map((p, i) =>
+            h("tr", null,
+              h("td", null, i + 1),
+              h("td", null, p.name, p.connected ? "" : h("span", { class: "muted" }, " (offline)"), p.streak >= 3 ? ` 🔥${p.streak}` : ""),
+              showProgress && h("td", null, h("div", { class: "row", style: "flex-wrap:nowrap" },
+                h("div", { class: "progress", style: "flex:1" }, h("div", { style: `width:${(p.answered / total) * 100}%` })),
+                h("span", { class: "muted" }, p.finished ? "Done" : `${p.answered}/${total}`))),
+              h("td", { class: "num" }, `${p.correct}/${p.answered}`),
+              h("td", { class: "num" }, p.score.toLocaleString()),
+              kickable && h("td", null, h("button", { class: "btn-ghost btn-sm", title: `Remove ${p.name}`, onclick: () => confirm(`Remove ${p.name}?`) && socket.emit("host:kick", { playerId: p.id }) }, "✕")),
+            )))));
+    }
+
+    function selfPaced(s) {
+      const done = s.players.filter((p) => p.finished).length;
+      app.replaceChildren(
+        h("div", { class: "stack" },
+          h("div", { class: "card row spread" },
+            h("div", null, h("span", { class: "pill" }, "Self-paced"), " ", h("strong", null, s.quizTitle),
+              h("div", { class: "muted" }, "Students can still join with code ", h("strong", null, s.code))),
+            h("div", { class: "row" }, h("strong", null, `${done} / ${s.players.length} finished`),
+              h("button", { onclick: () => confirm("End the game for everyone?") && socket.emit("host:end") }, "End & see report"))),
+          leaderboardCard(s.players, "Live leaderboard", true, s.total),
+        ),
+      );
+    }
+
+    function finished(s) {
+      app.replaceChildren(
+        h("div", { class: "stack", style: "text-align:center" },
+          h("h1", null, "Final results"),
+          h("p", { class: "muted" }, s.quizTitle),
+          s.players.length ? podium(s.players.slice(0, 3)) : h("p", { class: "muted" }, "Nobody played this game."),
+          h("div", { class: "row", style: "justify-content:center" },
+            s.reportId && h("a", { class: "btn btn-big", href: `/report.html?id=${s.reportId}` }, "View full report"),
+            h("a", { class: "btn btn-ghost btn-big", href: "/dashboard.html" }, "Dashboard")),
+          s.players.length > 3 && leaderboardCard(s.players, "All players", false, s.total, false),
+        ),
+      );
+    }
+
+    socket.on("disconnect", () => {
+      stopTimer();
+      app.prepend(h("p", { class: "banner" }, "Connection lost. Reconnecting…"));
+    });
+  </script>
+</body>
+</html>

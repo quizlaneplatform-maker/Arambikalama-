@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Log in · Quizlane</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400..800;1,9..40,400&family=Kalam:wght@400;700&display=swap" />
+  <link rel="stylesheet" href="/styles.css" />
+  <script src="/theme.js"></script>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%23ff319f%27/%3E%3Ctext x=%2716%27 y=%2723%27 font-size=%2720%27 font-family=%27sans-serif%27 font-weight=%27800%27 fill=%27white%27 text-anchor=%27middle%27%3EQ%3C/text%3E%3C/svg%3E" />
+</head>
+<body>
+  <div id="top"></div>
+  <main class="wrap narrow">
+    <div class="card auth-card" style="margin-top:1.5rem">
+
+      <!-- step 1: email -->
+      <form id="step-email" class="stack" novalidate>
+        <div>
+          <h1>Log in or sign up</h1>
+          <p class="muted">Enter your email. We'll send you a 6-digit code, no password needed.</p>
+        </div>
+        <label class="field"><span>Email address</span>
+          <input id="email" type="email" inputmode="email" autocomplete="email" placeholder="you@school.edu" autofocus /></label>
+        <button id="email-btn" class="btn-big" type="submit" style="width:100%">Continue</button>
+        <p class="error" id="email-err" role="alert"></p>
+        <p class="muted small" style="margin:0">New here? Just enter your email. We'll create your teacher account after you verify it.</p>
+      </form>
+
+      <!-- step 2: code -->
+      <form id="step-code" class="stack hidden" autocomplete="off" novalidate>
+        <button type="button" class="link-btn" id="back">← Back</button>
+        <div>
+          <h1>Enter verification code</h1>
+          <p class="muted">Sent to <strong id="sent-to"></strong> · <button type="button" class="link-btn" id="edit-email">Edit</button></p>
+          <p class="muted small hidden" id="dev-note">Email isn't set up on this server yet, so the code was printed in the server console.</p>
+        </div>
+        <div class="otp-boxes" id="otp" role="group" aria-label="6-digit code"></div>
+        <p class="error" id="code-err" role="alert"></p>
+        <button id="code-btn" class="btn-big" type="submit" style="width:100%">Verify</button>
+        <p class="muted small" style="margin:0;text-align:center" id="resend-line"></p>
+      </form>
+
+      <!-- step 3: first time only -->
+      <form id="step-name" class="stack hidden" novalidate>
+        <div>
+          <div class="big-emoji">👋</div>
+          <h1>Welcome to Quizlane!</h1>
+          <p class="muted">Your email is verified. What should your students see as your name?</p>
+        </div>
+        <label class="field"><span>Your name</span><input id="name" maxlength="60" autocomplete="name" placeholder="Ms. Rivera" /></label>
+        <button id="name-btn" class="btn-big" type="submit" style="width:100%">Get started</button>
+        <p class="error" id="name-err" role="alert"></p>
+      </form>
+    </div>
+    <p class="muted small" style="text-align:center;margin-top:1rem">Student? <a href="/">Join a game with a code</a></p>
+  </main>
+  <script src="/common.js"></script>
+  <script>
+    document.getElementById("top").replaceWith(topbar(h("a", { class: "btn btn-ghost", href: "/" }, "Join a game")));
+    const $ = (id) => document.getElementById(id);
+    const next = (() => {
+      // Only same-site redirects. Resolve the URL: browsers treat "/\evil.com" like "//evil.com".
+      try {
+        const u = new URL(qs("next") || "/dashboard.html", location.origin);
+        return u.origin === location.origin ? u.pathname + u.search + u.hash : "/dashboard.html";
+      } catch {
+        return "/dashboard.html";
+      }
+    })();
+    api("/api/auth/me", { allow401: true }).then(() => location.replace(next)).catch(() => {});
+
+    const post = async (path, body) => {
+      const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      return { ok: r.ok, data: await r.json().catch(() => ({})) };
+    };
+    const show = (id) => {
+      for (const s of ["step-email", "step-code", "step-name"]) $(s).classList.toggle("hidden", s !== id);
+    };
+    let challenge = null;
+    let signupToken = null;
+    let timer = 0;
+
+    // ---- step 1: email
+    $("step-email").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const email = $("email").value.trim();
+      $("email-err").textContent = "";
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return ($("email-err").textContent = "Enter a valid email address.");
+      $("email-btn").disabled = true;
+      $("email-btn").textContent = "Sending code…";
+      const { ok, data } = await post("/api/auth/otp/start", { email });
+      $("email-btn").disabled = false;
+      $("email-btn").textContent = "Continue";
+      if (!ok) return ($("email-err").textContent = data.error || "Couldn't send the code.");
+      challenge = data.challenge;
+      $("sent-to").textContent = data.email;
+      $("dev-note").classList.toggle("hidden", !data.devConsole);
+      show("step-code");
+      resetBoxes();
+      countdown(data.resendIn || 30);
+    });
+
+    // ---- step 2: six digit boxes
+    const boxes = Array.from({ length: 6 }, (_, i) =>
+      h("input", { class: "otp-box", inputmode: "numeric", maxlength: "1", autocomplete: i === 0 ? "one-time-code" : "off", "aria-label": `Digit ${i + 1}` }));
+    $("otp").replaceChildren(...boxes);
+    const code = () => boxes.map((b) => b.value).join("");
+    const paint = () => boxes.forEach((b) => b.classList.toggle("filled", !!b.value));
+    function resetBoxes() {
+      boxes.forEach((b) => (b.value = ""));
+      $("code-err").textContent = "";
+      $("otp").classList.remove("shake", "ok");
+      paint();
+      boxes[0].focus();
+    }
+    function fillFrom(i, digits) {
+      for (const d of digits) {
+        if (i > 5) break;
+        boxes[i++].value = d;
+      }
+      paint();
+      boxes[Math.min(i, 5)].focus();
+      if (code().length === 6) $("step-code").requestSubmit();
+    }
+    boxes.forEach((b, i) => {
+      b.addEventListener("input", () => {
+        const digits = b.value.replace(/\D/g, "");
+        b.value = "";
+        $("code-err").textContent = "";
+        if (digits) fillFrom(i, digits); // also handles autofill of all 6 digits into the first box
+        else paint();
+      });
+      b.addEventListener("keydown", (e) => {
+        if (e.key === "Backspace" && !b.value && i > 0) {
+          boxes[i - 1].value = "";
+          boxes[i - 1].focus();
+          paint();
+          e.preventDefault();
+        }
+        if (e.key === "ArrowLeft" && i > 0) boxes[i - 1].focus();
+        if (e.key === "ArrowRight" && i < 5) boxes[i + 1].focus();
+      });
+      b.addEventListener("paste", (e) => {
+        e.preventDefault();
+        fillFrom(i, (e.clipboardData.getData("text") || "").replace(/\D/g, "").slice(0, 6));
+      });
+      b.addEventListener("focus", () => b.select());
+    });
+
+    $("step-code").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (code().length !== 6) return ($("code-err").textContent = "Enter all 6 digits.");
+      $("code-btn").disabled = true;
+      $("code-btn").textContent = "Verifying…";
+      const { ok, data } = await post("/api/auth/otp/verify", { challenge, code: code() });
+      $("code-btn").disabled = false;
+      $("code-btn").textContent = "Verify";
+      if (ok && data.needName) {
+        clearInterval(timer);
+        signupToken = data.signupToken;
+        show("step-name");
+        return $("name").focus();
+      }
+      if (ok) {
+        $("otp").classList.add("ok");
+        return setTimeout(() => (location.href = next), 250);
+      }
+      if (data.restart) return backToEmail(data.error);
+      $("code-err").textContent = data.error || "Couldn't verify the code.";
+      $("otp").classList.remove("shake");
+      void $("otp").offsetWidth; // restart the animation
+      $("otp").classList.add("shake");
+      boxes.forEach((b) => (b.value = ""));
+      paint();
+      boxes[0].focus();
+    });
+
+    function countdown(sec) {
+      clearInterval(timer);
+      let left = sec;
+      const line = $("resend-line");
+      const tick = () => {
+        if (left > 0) {
+          line.replaceChildren("Didn't get it? Resend OTP in ", h("strong", null, `0:${String(left).padStart(2, "0")}`));
+          left--;
+        } else {
+          clearInterval(timer);
+          line.replaceChildren("Didn't get it? ", h("button", { type: "button", class: "link-btn", onclick: resend }, "Resend OTP"), " · check spam too");
+        }
+      };
+      tick();
+      timer = setInterval(tick, 1000);
+    }
+    async function resend() {
+      const { ok, data } = await post("/api/auth/otp/resend", { challenge });
+      if (data.restart) return backToEmail(data.error);
+      if (!ok) {
+        $("code-err").textContent = data.error;
+        return countdown(data.retryAfter || 30);
+      }
+      toast("New code sent");
+      $("dev-note").classList.toggle("hidden", !data.devConsole);
+      resetBoxes();
+      countdown(data.resendIn || 30);
+    }
+    function backToEmail(msg) {
+      clearInterval(timer);
+      challenge = null;
+      show("step-email");
+      $("email-err").textContent = msg || "";
+      $("email").focus();
+    }
+    $("back").onclick = () => backToEmail();
+    $("edit-email").onclick = () => backToEmail();
+
+    // ---- step 3: name (new teachers only)
+    $("step-name").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const name = $("name").value.trim();
+      if (!name) return ($("name-err").textContent = "Enter your name.");
+      $("name-btn").disabled = true;
+      const { ok, data } = await post("/api/auth/otp/complete", { signupToken, name });
+      if (ok) return (location.href = next);
+      $("name-btn").disabled = false;
+      if (data.restart) return backToEmail(data.error);
+      $("name-err").textContent = data.error || "Couldn't create your account.";
+    });
+  </script>
+</body>
+</html>

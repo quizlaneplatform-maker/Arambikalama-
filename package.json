@@ -1,0 +1,19 @@
+{
+  "name": "quizlane",
+  "version": "1.0.0",
+  "description": "Live and self-paced classroom quiz platform",
+  "main": "server.js",
+  "private": true,
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server.js",
+    "dev": "node --watch --env-file-if-exists=.env server.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "nodemailer": "^10.3.1",
+    "socket.io": "^4.8.1"
+  }
+}

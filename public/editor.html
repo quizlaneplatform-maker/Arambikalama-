@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Quiz Editor · Quizlane</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400..800;1,9..40,400&family=Kalam:wght@400;700&display=swap" />
+  <link rel="stylesheet" href="/styles.css" />
+  <script src="/theme.js"></script>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%23ff319f%27/%3E%3Ctext x=%2716%27 y=%2723%27 font-size=%2720%27 font-family=%27sans-serif%27 font-weight=%27800%27 fill=%27white%27 text-anchor=%27middle%27%3EQ%3C/text%3E%3C/svg%3E" />
+</head>
+<body>
+  <div id="top"></div>
+  <main class="wrap stack" style="max-width:860px">
+    <div class="card editor-bar">
+      <label class="field" style="flex:1;min-width:220px"><span>Quiz title</span><input id="title" class="title-input" maxlength="120" placeholder="Untitled quiz" /></label>
+      <span class="muted small" id="count"></span>
+      <p class="error" id="err" role="alert" style="flex-basis:100%"></p>
+    </div>
+    <div id="ai"></div>
+    <div id="questions" class="stack"></div>
+    <button class="new-card" id="add" style="min-height:90px;width:100%;background:transparent;box-shadow:none">+ Add question</button>
+  </main>
+  <script src="/common.js"></script>
+  <script>
+    const id = qs("id");
+    const err = document.getElementById("err");
+    const titleInput = document.getElementById("title");
+    const list = document.getElementById("questions");
+    const saveBtn = h("button", { onclick: save }, "✓ Save quiz");
+    teacherMenu(h("a", { class: "btn btn-ghost", href: "/dashboard.html" }, "Cancel"), saveBtn).then((menu) =>
+      document.getElementById("top").replaceWith(topbar(menu)),
+    );
+
+    // ---- AI question generation (Grok)
+    function aiPanel(enabled) {
+      const box = document.getElementById("ai");
+      if (!enabled) {
+        box.replaceChildren(h("div", { class: "card ai-card muted" }, "✨ AI question generation is off. Add your Grok key as ", h("code", null, "XAI_API_KEY"), " in the .env file and restart the server to turn it on."));
+        return;
+      }
+      const topic = h("input", { maxlength: "300", placeholder: "e.g. The water cycle, or paste a short passage" });
+      const count = h("select", { value: "5", "aria-label": "Number of questions" }, [3, 5, 10, 15, 20].map((n) => h("option", { value: String(n) }, `${n} questions`)));
+      const difficulty = h("select", { value: "medium", "aria-label": "Difficulty" }, ["easy", "medium", "hard"].map((d) => h("option", { value: d }, d[0].toUpperCase() + d.slice(1))));
+      const grade = h("input", { maxlength: "60", "aria-label": "Grade level", placeholder: "e.g. Grade 7 (optional)" });
+      const notes = h("textarea", { rows: "2", maxlength: "1000", "aria-label": "Extra instructions", placeholder: "Extra instructions (optional), e.g. include 2 true/false questions" });
+      const status = h("p", { class: "muted", style: "margin:0" });
+      const go = h("button", { type: "submit" }, "✨ Generate");
+      box.replaceChildren(
+        h("form", { class: "card ai-card stack", onsubmit: async (e) => {
+          e.preventDefault();
+          err.textContent = "";
+          go.disabled = true;
+          status.className = "muted";
+          status.textContent = "Grok is writing questions… this can take up to a minute.";
+          try {
+            const res = await api("/api/ai/generate", { method: "POST", body: {
+              topic: topic.value, count: Number(count.value), difficulty: difficulty.value, gradeLevel: grade.value, notes: notes.value } });
+            const onlyBlank = questions.length === 1 && !questions[0].text.trim() && questions[0].options.every((o) => !o.trim());
+            questions = onlyBlank ? res.questions : questions.concat(res.questions);
+            if (!titleInput.value.trim()) titleInput.value = res.title;
+            render();
+            status.textContent = `Added ${res.questions.length} question${res.questions.length === 1 ? "" : "s"}. Check them over before saving — AI can make mistakes.`;
+          } catch (e2) {
+            status.className = "error";
+            status.textContent = e2.message;
+          } finally {
+            go.disabled = false;
+          }
+        } },
+          h("div", null, h("h3", { style: "margin:0" }, "✨ Generate questions with AI"), h("p", { class: "muted small", style: "margin:0" }, "Powered by Grok. Review every question before saving.")),
+          h("label", { class: "field" }, h("span", null, "Topic"), topic),
+          h("div", { class: "ai-grid" }, count, difficulty, grade),
+          notes,
+          h("div", { class: "row" }, go),
+          status,
+        ),
+      );
+    }
+    api("/api/auth/me").then((me) => aiPanel(me.aiEnabled));
+
+    let questions = [];
+    const blank = () => ({ text: "", options: ["", "", "", ""], correctIndex: 0, timeLimit: 20 });
+    const TIMES = [5, 10, 20, 30, 45, 60, 90, 120];
+
+    function render() {
+      document.getElementById("count").textContent = `${questions.length} question${questions.length === 1 ? "" : "s"}`;
+      list.replaceChildren(
+        ...questions.map((q, qi) =>
+          h(
+            "div",
+            { class: "card q-card stack" },
+            h(
+              "div",
+              { class: "row spread" },
+              h("strong", null, h("span", { class: "q-num" }, qi + 1), "Question"),
+              h(
+                "div",
+                { class: "row q-tools" },
+                h("select", { "aria-label": "Time limit", onchange: (e) => (q.timeLimit = Number(e.target.value)), value: String(q.timeLimit) },
+                  [...new Set([...TIMES, q.timeLimit])].sort((a, b) => a - b).map((t) => h("option", { value: String(t) }, `⏱ ${t} sec`))),
+                h("button", { class: "btn-ghost btn-sm", disabled: qi === 0, title: "Move up", onclick: () => move(qi, -1) }, "↑"),
+                h("button", { class: "btn-ghost btn-sm", disabled: qi === questions.length - 1, title: "Move down", onclick: () => move(qi, 1) }, "↓"),
+                h("button", { class: "btn-danger btn-sm", disabled: questions.length === 1, onclick: () => { questions.splice(qi, 1); render(); } }, "Remove"),
+              ),
+            ),
+            h("textarea", { rows: "2", maxlength: "300", placeholder: "Type your question", "aria-label": `Question ${qi + 1} text`, oninput: (e) => (q.text = e.target.value) }, q.text),
+            h("div", { class: "muted small" }, "Select the circle next to the correct answer."),
+            ...q.options.map((opt, oi) =>
+              h(
+                "div",
+                { class: `opt-row${q.correctIndex === oi ? " correct" : ""}` },
+                h("span", { class: "swatch", style: `background:var(--opt${oi})` }, SHAPES[oi]),
+                h("input", { type: "radio", name: `correct-${qi}`, checked: q.correctIndex === oi, "aria-label": `Answer ${oi + 1} is correct`, onchange: () => { q.correctIndex = oi; render(); } }),
+                h("input", { maxlength: "120", placeholder: `Answer ${oi + 1}`, "aria-label": `Question ${qi + 1}, answer ${oi + 1}`, value: opt, oninput: (e) => (q.options[oi] = e.target.value) }),
+                h("button", {
+                  class: "btn-ghost btn-sm", title: "Remove answer", disabled: q.options.length <= 2,
+                  onclick: () => {
+                    q.options.splice(oi, 1);
+                    if (q.correctIndex === oi) q.correctIndex = 0;
+                    else if (q.correctIndex > oi) q.correctIndex -= 1;
+                    render();
+                  },
+                }, "✕"),
+              ),
+            ),
+            h("div", { class: "row" },
+              q.options.length < 4 && h("button", { class: "btn-ghost btn-sm", onclick: () => { q.options.push(""); render(); } }, "+ Add answer"),
+              h("button", { class: "btn-ghost btn-sm", onclick: () => { q.options = ["True", "False"]; q.correctIndex = 0; render(); } }, "Make true / false"),
+            ),
+          ),
+        ),
+      );
+    }
+
+    function move(i, d) {
+      [questions[i], questions[i + d]] = [questions[i + d], questions[i]];
+      render();
+    }
+
+    document.getElementById("add").addEventListener("click", () => {
+      questions.push(blank());
+      render();
+      list.lastElementChild?.querySelector("textarea")?.focus();
+    });
+
+    // Clear a stale save error as soon as the teacher edits anything.
+    document.querySelector("main").addEventListener("input", () => (err.textContent = ""));
+
+    async function save() {
+      err.textContent = "";
+      saveBtn.disabled = true;
+      try {
+        const body = { title: titleInput.value, questions };
+        await api(id ? `/api/quizzes/${id}` : "/api/quizzes", { method: id ? "PUT" : "POST", body });
+        location.href = "/dashboard.html";
+      } catch (e) {
+        err.textContent = e.message;
+        toast(e.message);
+        saveBtn.disabled = false;
+      }
+    }
+
+    (async () => {
+      if (id) {
+        try {
+          const quiz = await api(`/api/quizzes/${id}`);
+          titleInput.value = quiz.title;
+          questions = quiz.questions;
+        } catch (e) {
+          err.textContent = e.message;
+        }
+      }
+      if (!questions.length) questions = [blank()];
+      render();
+    })();
+  </script>
+</body>
+</html>

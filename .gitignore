@@ -1,0 +1,12 @@
+node_modules/
+data/
+.env
+.env.*
+!.env.example
+
+# local testing artifacts (contain logs with login codes and screenshots)
+test-report/
+.playwright-mcp/
+
+# third-party design capture: reference only, do not publish
+wayground-design.rar

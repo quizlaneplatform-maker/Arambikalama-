@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Play · Quizlane</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400..800;1,9..40,400&family=Kalam:wght@400;700&display=swap" />
+  <link rel="stylesheet" href="/styles.css" />
+  <script src="/theme.js"></script>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%23ff319f%27/%3E%3Ctext x=%2716%27 y=%2723%27 font-size=%2720%27 font-family=%27sans-serif%27 font-weight=%27800%27 fill=%27white%27 text-anchor=%27middle%27%3EQ%3C/text%3E%3C/svg%3E" />
+</head>
+<body class="theme-dark">
+  <div class="player-top"><a class="logo" href="/">Quiz<span>lane</span></a><div class="row"><span id="status"></span><span class="theme-slot"></span><button id="mute" class="btn-ghost btn-sm icon-btn" type="button"></button></div></div>
+  <main id="app"><div class="center-screen"><p class="muted">Connecting…</p></div></main>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/common.js"></script>
+  <script>
+    const code = (qs("code") || "").trim();
+    const app = document.getElementById("app");
+    const statusEl = document.getElementById("status");
+    const pidKey = `player:${code}`;
+    const socket = io();
+    let stopTimer = () => {};
+    let nextTimer = 0;
+
+    const screen = (cls, ...children) => h("div", { class: `center-screen ${cls || ""}` }, ...children);
+    const show = (...nodes) => { stopTimer(); clearTimeout(nextTimer); app.replaceChildren(...nodes); };
+
+    function nameForm(error) {
+      const input = h("input", { maxlength: "20", placeholder: "Your nickname", autocomplete: "off", "aria-label": "Nickname", style: "font-size:1.3rem;text-align:center;font-weight:700" });
+      const btn = h("button", { class: "btn-big", type: "submit" }, "Let's go");
+      show(screen("",
+        h("h2", null, "Enter a nickname"),
+        h("span", { class: "pill" }, `Game ${code}`),
+        h("form", { class: "stack", style: "width:min(360px,100%)", onsubmit: (e) => {
+          e.preventDefault();
+          btn.disabled = true;
+          join(input.value);
+        } }, input, btn),
+        h("p", { class: "error" }, error || "")));
+      input.focus();
+    }
+
+    function join(name) {
+      socket.emit("player:join", { code, name, playerId: sessionStorage.getItem(pidKey) }, (res) => {
+        if (res.error) {
+          sessionStorage.removeItem(pidKey);
+          return res.needName ? nameForm(name === undefined ? "" : res.error) : fatal(res.error);
+        }
+        sessionStorage.setItem(pidKey, res.playerId);
+      });
+    }
+
+    function fatal(msg) {
+      show(screen("", h("div", { class: "big-emoji" }, "😕"), h("h2", null, msg), h("a", { class: "btn", href: "/" }, "Back to home")));
+    }
+
+    socket.on("connect", () => {
+      if (!/^\d{6}$/.test(code)) return fatal("That game code doesn't look right.");
+      join(); // with no name the server first checks the game exists, then asks for a nickname
+    });
+
+    socket.on("kicked", () => {
+      sessionStorage.removeItem(pidKey);
+      fatal("The teacher removed you from this game.");
+    });
+
+    socket.on("state", (s) => {
+      statusEl.textContent = `${s.name} · ${s.score.toLocaleString()} pts`;
+      ({ lobby, question, answered, result, done, finished })[s.view]?.(s);
+    });
+
+    function lobby(s) {
+      show(screen("",
+        h("div", { class: "big-emoji pulse" }, "🎉"),
+        h("h2", null, `You're in, ${s.name}!`),
+        h("p", { class: "muted" }, s.quizTitle),
+        h("p", null, s.mode === "live" ? "Watch the teacher's screen. The game starts soon." : "Waiting for the teacher to start the practice.")));
+    }
+
+    function question(s) {
+      const q = s.question;
+      const timer = timerBar(q.remainingMs, q.timeLimit * 1000);
+      let sent = false;
+      const pick = (i) => {
+        if (sent) return;
+        sent = true;
+        socket.emit("player:answer", { index: q.index, choice: i });
+      };
+      show(h("div", { class: "wrap stack" },
+        h("div", { class: "row spread" }, h("span", { class: "pill" }, `${q.index + 1} / ${s.total}`), s.streak >= 2 ? h("strong", null, `🔥 ${s.streak} streak`) : ""),
+        timer.el,
+        h("div", { class: "question-text" }, q.text),
+        h("div", { class: "options" },
+          q.options.map((o, i) => h("button", { class: `opt opt-${i}`, onclick: () => pick(i) }, h("span", { class: "shape" }, SHAPES[i]), o)))));
+      const stopCountdown = timer.start();
+      // Live games wait for everyone, so the question stays open after the timer runs out.
+      const late = s.mode === "live" && setTimeout(() => {
+        app.querySelector(".question-text")?.after(h("p", { class: "banner", style: "text-align:center;background:var(--brand-soft);color:var(--brand)" },
+          "⏰ Time's up, but you can still answer! Everyone needs to answer before the reveal."));
+      }, q.remainingMs);
+      stopTimer = () => { stopCountdown(); clearTimeout(late); };
+    }
+
+    function answered(s) {
+      show(screen("",
+        h("div", { class: "big-emoji pulse" }, "⏳"),
+        h("h2", null, "Answer locked in!"),
+        h("p", { class: "muted" }, "Waiting for everyone else…")));
+    }
+
+    // ---- sound effects (synthesised with Web Audio, no files needed)
+    let audio = null;
+    let muted = false;
+    try { muted = localStorage.getItem("ql_muted") === "1"; } catch {}
+    const muteBtn = document.getElementById("mute");
+    const paintMute = () => {
+      muteBtn.textContent = muted ? "🔇" : "🔊";
+      muteBtn.title = muted ? "Turn sound on" : "Turn sound off";
+      muteBtn.setAttribute("aria-label", muteBtn.title);
+    };
+    paintMute();
+    muteBtn.onclick = () => {
+      muted = !muted;
+      try { localStorage.setItem("ql_muted", muted ? "1" : "0"); } catch {}
+      paintMute();
+    };
+    // Browsers only allow audio after a user gesture, so unlock it on the first tap/key press.
+    function unlockAudio() {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      audio ??= new Ctx();
+      if (audio.state === "suspended") audio.resume();
+    }
+    addEventListener("pointerdown", unlockAudio);
+    addEventListener("keydown", unlockAudio);
+
+    function tone(freq, start, dur, { type = "triangle", vol = 0.18, slideTo } = {}) {
+      const t0 = audio.currentTime + start;
+      const osc = audio.createOscillator();
+      const gain = audio.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, t0);
+      if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, t0 + dur);
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.exponentialRampToValueAtTime(vol, t0 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      osc.connect(gain).connect(audio.destination);
+      osc.start(t0);
+      osc.stop(t0 + dur + 0.05);
+    }
+
+    function playSound(kind) {
+      if (muted || !audio || audio.state !== "running") return;
+      if (kind === "correct") {
+        // bright rising arpeggio C5-E5-G5-C6, then a sparkle
+        [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => tone(f, i * 0.09, 0.32, { type: "triangle", vol: 0.2 }));
+        tone(1568, 0.38, 0.5, { type: "sine", vol: 0.12 });
+        tone(2093, 0.46, 0.45, { type: "sine", vol: 0.08 });
+      } else {
+        // descending "wah-wah-wah-waaah"
+        [392, 370, 349.2].forEach((f, i) => tone(f, i * 0.32, 0.28, { type: "sawtooth", vol: 0.09 }));
+        tone(329.6, 0.96, 0.75, { type: "sawtooth", vol: 0.09, slideTo: 277.2 });
+      }
+    }
+    let soundedFor = null; // play once per question, not again on reconnect/re-render
+
+    function result(s) {
+      const r = s.result;
+      const q = s.question;
+      const timedOut = r.choice === null;
+      if (soundedFor !== q.index) {
+        soundedFor = q.index;
+        playSound(r.correct ? "correct" : "wrong");
+      }
+      const nextBtn = s.mode === "self" &&
+        h("button", { class: "btn-big", onclick: () => socket.emit("player:next") }, s.isLast ? "Finish" : "Next question →");
+      show(screen(r.correct ? "result-good" : "result-bad",
+        h("div", { class: "big-emoji" }, r.correct ? "✅" : timedOut ? "⌛" : "❌"),
+        h("h2", null, r.correct ? "Correct!" : timedOut ? "Time's up" : "Not quite"),
+        r.correct ? h("div", { class: "points ok" }, `+${r.points}`) : null,
+        !r.correct ? h("p", null, "The answer was ", h("strong", null, q.options[r.correctIndex])) : null,
+        r.correct && s.streak >= 2 ? h("p", null, `🔥 ${s.streak} in a row`) : null,
+        h("p", { class: "muted" }, `You're #${s.rank} of ${s.playerCount} · ${s.score.toLocaleString()} points`),
+        nextBtn || h("p", { class: "muted" }, "Next question coming up…")));
+      if (nextBtn) nextTimer = setTimeout(() => socket.emit("player:next"), 3500);
+    }
+
+    function done(s) {
+      show(screen("",
+        h("div", { class: "big-emoji" }, "🏁"),
+        h("h2", null, "All done!"),
+        h("p", null, `You got ${s.correct} of ${s.total} right and scored ${s.score.toLocaleString()} points.`),
+        h("p", { class: "muted" }, `Currently #${s.rank} of ${s.playerCount}. Final results appear when your teacher ends the game.`)));
+    }
+
+    function finished(s) {
+      sessionStorage.removeItem(pidKey);
+      show(screen("",
+        h("h2", null, "Game over"),
+        h("div", { class: "points" }, `#${s.rank}`),
+        h("p", null, `${s.correct} of ${s.total} correct · ${s.score.toLocaleString()} points`),
+        podium(s.podium),
+        h("a", { class: "btn", href: "/" }, "Play again")));
+    }
+
+    socket.on("disconnect", () => statusEl.textContent = "Reconnecting…");
+  </script>
+</body>
+</html>

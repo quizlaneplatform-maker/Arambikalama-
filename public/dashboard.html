@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Teacher Dashboard · Quizlane</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400..800;1,9..40,400&family=Kalam:wght@400;700&display=swap" />
+  <link rel="stylesheet" href="/styles.css" />
+  <script src="/theme.js"></script>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%23ff319f%27/%3E%3Ctext x=%2716%27 y=%2723%27 font-size=%2720%27 font-family=%27sans-serif%27 font-weight=%27800%27 fill=%27white%27 text-anchor=%27middle%27%3EQ%3C/text%3E%3C/svg%3E" />
+</head>
+<body>
+  <div id="top"></div>
+  <main class="wrap stack">
+    <div class="section-head">
+      <div><h1 id="hello">My quizzes</h1><p class="muted">Create, host and review your classroom quizzes.</p></div>
+      <a class="btn" href="/editor.html">+ New quiz</a>
+    </div>
+    <section class="stats" id="stats"></section>
+    <p class="error" id="err" role="alert"></p>
+    <section class="grid" id="quizzes"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></section>
+
+    <div class="section-head" style="margin-top:2.5rem"><div><h2>Reports</h2><p class="muted">Results from finished games.</p></div></div>
+    <section class="card" id="reports" style="padding:.5rem 1rem"><p class="muted" style="padding:1rem 0">Loading…</p></section>
+  </main>
+  <script src="/common.js"></script>
+  <script>
+    teacherMenu().then((menu) => document.getElementById("top").replaceWith(topbar(menu)));
+    api("/api/auth/me").then((me) => (document.getElementById("hello").textContent = `Hi, ${me.user.name.split(" ")[0]} 👋`));
+    const err = document.getElementById("err");
+    const ACCENTS = ["var(--peach)", "var(--yellow)", "var(--lavender)", "var(--teal)"];
+    const accClass = (a) => (a == null ? "" : a >= 75 ? "hi" : a >= 50 ? "mid" : "lo");
+    let quizList = [], reportList = [];
+
+    function renderStats() {
+      const withAcc = reportList.filter((r) => r.accuracy != null);
+      const avg = withAcc.length ? Math.round(withAcc.reduce((s, r) => s + r.accuracy, 0) / withAcc.length) : null;
+      const stat = (label, value) => h("div", { class: "card stat" }, h("div", { class: "label" }, label), h("b", null, value));
+      document.getElementById("stats").replaceChildren(
+        stat("Quizzes", quizList.length),
+        stat("Questions written", quizList.reduce((s, q) => s + q.questionCount, 0)),
+        stat("Games played", reportList.length),
+        stat("Avg. accuracy", avg == null ? "–" : `${avg}%`),
+      );
+    }
+
+    async function loadQuizzes() {
+      const box = document.getElementById("quizzes");
+      quizList = await api("/api/quizzes");
+      renderStats();
+      const newCard = h("a", { class: "new-card", href: "/editor.html" }, h("span", { class: "plus" }, "+"), "Create a new quiz");
+      box.replaceChildren(
+        ...quizList.map((q, i) =>
+          h("div", { class: "card quiz-card", style: `--accent:${ACCENTS[i % ACCENTS.length]}` },
+            h("div", { class: "stack-sm" },
+              h("h3", null, q.title),
+              h("div", { class: "meta" },
+                h("span", { class: "badge" }, `${q.questionCount} question${q.questionCount === 1 ? "" : "s"}`),
+                h("span", null, `Edited ${fmtDate(q.updatedAt)}`))),
+            h("div", { class: "actions" },
+              h("a", { class: "btn btn-sm", href: `/host.html?quiz=${q.id}&mode=live` }, "▶ Host live"),
+              h("a", { class: "btn btn-ghost btn-sm", href: `/host.html?quiz=${q.id}&mode=self` }, "Self-paced")),
+            h("div", { class: "tools" },
+              h("a", { class: "btn btn-ghost btn-sm", href: `/editor.html?id=${q.id}` }, "✎ Edit"),
+              h("button", {
+                class: "btn-danger btn-sm",
+                onclick: async () => {
+                  if (!confirm(`Delete "${q.title}"? This cannot be undone.`)) return;
+                  try {
+                    await api(`/api/quizzes/${q.id}`, { method: "DELETE" });
+                    toast("Quiz deleted");
+                    loadQuizzes();
+                  } catch (e) {
+                    err.textContent = e.message;
+                  }
+                },
+              }, "Delete"),
+            ),
+          ),
+        ),
+        newCard,
+      );
+    }
+
+    async function loadReports() {
+      const box = document.getElementById("reports");
+      reportList = await api("/api/reports");
+      renderStats();
+      if (!reportList.length) {
+        box.replaceChildren(h("div", { class: "empty" }, h("div", { class: "big-emoji" }, "📊"), h("p", null, "Reports appear here after a game ends.")));
+        return;
+      }
+      box.replaceChildren(h("div", { class: "table-wrap" },
+        h("table", null,
+          h("thead", null, h("tr", null, h("th", null, "Quiz"), h("th", null, "Mode"), h("th", { class: "hide-sm" }, "Ended"), h("th", { class: "num" }, "Players"), h("th", { class: "num" }, "Accuracy"), h("th", null, ""))),
+          h("tbody", null,
+            reportList.map((r) =>
+              h("tr", null,
+                h("td", null, h("a", { href: `/report.html?id=${r.id}`, style: "font-weight:700" }, r.quizTitle)),
+                h("td", null, h("span", { class: `badge${r.mode === "live" ? "" : " self"}` }, r.mode === "live" ? "Live" : "Self-paced")),
+                h("td", { class: "muted hide-sm" }, fmtDate(r.endedAt)),
+                h("td", { class: "num" }, r.playerCount),
+                h("td", { class: `num acc ${accClass(r.accuracy)}` }, r.accuracy == null ? "–" : `${r.accuracy}%`),
+                h("td", { class: "num" }, h("button", { class: "btn-ghost btn-sm icon-btn", title: "Delete report", "aria-label": `Delete report for ${r.quizTitle}`, onclick: async () => {
+                  if (!confirm(`Delete this report for "${r.quizTitle}"?`)) return;
+                  try { await api(`/api/reports/${r.id}`, { method: "DELETE" }); toast("Report deleted"); loadReports(); }
+                  catch (e) { err.textContent = e.message; }
+                } }, "🗑")),
+              ),
+            ),
+          ),
+        )));
+    }
+
+    loadQuizzes().catch((e) => (err.textContent = e.message));
+    loadReports().catch((e) => (err.textContent = e.message));
+  </script>
+</body>
+</html>

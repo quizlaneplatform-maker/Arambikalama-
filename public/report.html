@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Report · Quizlane</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400..800;1,9..40,400&family=Kalam:wght@400;700&display=swap" />
+  <link rel="stylesheet" href="/styles.css" />
+  <script src="/theme.js"></script>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%23ff319f%27/%3E%3Ctext x=%2716%27 y=%2723%27 font-size=%2720%27 font-family=%27sans-serif%27 font-weight=%27800%27 fill=%27white%27 text-anchor=%27middle%27%3EQ%3C/text%3E%3C/svg%3E" />
+</head>
+<body>
+  <div id="top"></div>
+  <main class="wrap stack" id="app"><p class="muted">Loading…</p></main>
+  <script src="/common.js"></script>
+  <script>
+    const app = document.getElementById("app");
+    teacherMenu(h("a", { class: "btn btn-ghost", href: "/dashboard.html" }, "Dashboard")).then((menu) =>
+      document.getElementById("top").replaceWith(topbar(menu)),
+    );
+
+    (async () => {
+      try {
+        const r = await api(`/api/reports/${qs("id")}`);
+        document.title = `${r.quizTitle} report · Quizlane`;
+        const hardest = [...r.questions].map((q, i) => ({ ...q, i })).filter((q) => q.accuracy != null).sort((a, b) => a.accuracy - b.accuracy)[0];
+
+        app.replaceChildren(
+          h("div", null, h("h1", null, r.quizTitle),
+            h("p", { class: "muted" }, `${r.mode === "live" ? "Live game" : "Self-paced"} · ${fmtDate(r.startedAt)} · code ${r.code}`)),
+          h("div", { class: "stats" },
+            h("div", { class: "card stat" }, h("div", { class: "label" }, "Players"), h("b", null, r.players.length)),
+            h("div", { class: "card stat" }, h("div", { class: "label" }, "Class accuracy"), h("b", null, r.accuracy == null ? "–" : `${r.accuracy}%`)),
+            h("div", { class: "card stat" }, h("div", { class: "label" }, "Questions"), h("b", null, r.questions.length)),
+            hardest && h("div", { class: "card stat" }, h("div", { class: "label" }, `Hardest · ${hardest.accuracy}% correct`), h("b", null, `Q${hardest.i + 1}`))),
+
+          h("div", { class: "card" }, h("h2", null, "Students"),
+            h("div", { style: "overflow-x:auto" }, h("table", null,
+              h("thead", null, h("tr", null, h("th", null, "#"), h("th", null, "Name"), h("th", { class: "num" }, "Score"), h("th", { class: "num" }, "Answered"), h("th", { class: "num" }, "Accuracy"),
+                r.questions.map((_, i) => h("th", { class: "num" }, `Q${i + 1}`)))),
+              h("tbody", null, r.players.map((p, i) => h("tr", null,
+                h("td", null, i + 1), h("td", null, p.name), h("td", { class: "num" }, p.score.toLocaleString()),
+                h("td", { class: "num" }, `${p.answered}/${r.questions.length}`),
+                h("td", { class: "num" }, p.answered ? `${Math.round((p.correct / p.answered) * 100)}%` : "–"),
+                p.answers.map((a) => h("td", { class: "num" }, !a ? h("span", { class: "muted" }, "–") : a.correct ? h("span", { class: "ok", title: `${(a.timeMs / 1000).toFixed(1)}s` }, "✓") : h("span", { class: "no" }, a.choice === null ? "⌛" : "✗"))))))))),
+
+          h("div", { class: "card" }, h("h2", null, "Questions"),
+            h("div", { class: "table-wrap" }, h("table", null,
+              h("thead", null, h("tr", null, h("th", null, "#"), h("th", null, "Question"), h("th", null, "Answers chosen"), h("th", { class: "num" }, "Correct"))),
+              h("tbody", null, r.questions.map((q, i) => h("tr", null,
+                h("td", null, i + 1),
+                h("td", null, q.text, h("div", { class: "muted", style: "font-size:.9rem" }, "Answer: ", q.options[q.correctIndex])),
+                h("td", null, h("div", { class: "dist" }, q.options.map((o, k) => h("span", { style: `background:var(--opt${k})`, title: o }, `${SHAPES[k]} ${q.distribution[k]}`)),
+                  q.noAnswer ? h("span", { style: "background:var(--muted)", title: "No answer" }, `⌛ ${q.noAnswer}`) : null)),
+                h("td", { class: "num" }, q.accuracy == null ? "–" : `${q.accuracy}%`))))))),
+        );
+      } catch (e) {
+        app.replaceChildren(h("div", { class: "card" }, h("h2", null, e.message), h("a", { href: "/dashboard.html" }, "Back to dashboard")));
+      }
+    })();
+  </script>
+</body>
+</html>
