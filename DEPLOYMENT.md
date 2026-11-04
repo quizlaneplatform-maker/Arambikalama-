@@ -34,6 +34,8 @@ Aarambikallama is one Node.js process that serves the website, the API and the l
 
 ## Option A: Render (easiest)
 
+**Fastest:** Dashboard → **New → Blueprint** → pick this repo. `render.yaml` fills in everything below; you only type `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` and `XAI_API_KEY`. Or do it by hand:
+
 1. https://dashboard.render.com → **New → Web Service** → connect your GitHub repo.
 2. Settings:
    | Field | Value |

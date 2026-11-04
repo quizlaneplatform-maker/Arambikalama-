@@ -1,0 +1,35 @@
+# Render Blueprint: Dashboard → New → Blueprint → pick this repo.
+# Render asks for the values marked "sync: false" (your secrets) when you create it.
+services:
+  - type: web
+    name: aarambikallama
+    runtime: node
+    plan: starter            # a disk needs a paid instance; see DEPLOYMENT.md for the free option
+    region: singapore
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /healthz
+    numInstances: 1          # games and logins live in one process; never scale above 1
+    disk:
+      name: aarambikallama-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATA_DIR
+        value: /data
+      - key: NODE_VERSION
+        value: "22"
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "465"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      - key: XAI_API_KEY
+        sync: false
