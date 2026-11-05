@@ -41,7 +41,7 @@
               h("thead", null, h("tr", null, h("th", null, "#"), h("th", null, "Name"), h("th", { class: "num" }, "Score"), h("th", { class: "num" }, "Answered"), h("th", { class: "num" }, "Accuracy"),
                 r.questions.map((_, i) => h("th", { class: "num" }, `Q${i + 1}`)))),
               h("tbody", null, r.players.map((p, i) => h("tr", null,
-                h("td", null, i + 1), h("td", null, p.name), h("td", { class: "num" }, p.score.toLocaleString()),
+                h("td", null, i + 1), h("td", null, h("span", { class: "player-cell" }, avatarImg(p.avatar, 28), p.name)), h("td", { class: "num" }, p.score.toLocaleString()),
                 h("td", { class: "num" }, `${p.answered}/${r.questions.length}`),
                 h("td", { class: "num" }, p.answered ? `${Math.round((p.correct / p.answered) * 100)}%` : "–"),
                 p.answers.map((a) => h("td", { class: "num" }, !a ? h("span", { class: "muted" }, "–") : a.correct ? h("span", { class: "ok", title: `${(a.timeMs / 1000).toFixed(1)}s` }, "✓") : h("span", { class: "no" }, a.choice === null ? "⌛" : "✗"))))))))),

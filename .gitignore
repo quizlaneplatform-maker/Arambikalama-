@@ -10,3 +10,6 @@ test-report/
 
 # third-party design capture: reference only, do not publish
 wayground-design.rar
+
+# original full-size avatar photos (resized copies live in public/avatars)
+Avatar/

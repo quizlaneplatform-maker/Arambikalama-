@@ -57,6 +57,12 @@ function timerBar(remainingMs, totalMs) {
   return { el, start: () => startCountdown(bar, num, remainingMs, totalMs) };
 }
 
+/** Round avatar photo for player number `n` (public/avatars/n.jpg). Size is in px. */
+function avatarImg(n, size = 32, extraClass = "") {
+  if (!Number.isInteger(n)) return null;
+  return h("img", { class: `avatar ${extraClass}`.trim(), src: `/avatars/${n}.jpg`, alt: "", width: size, height: size, loading: "lazy", decoding: "async", style: `width:${size}px;height:${size}px` });
+}
+
 function podium(entries) {
   const order = [1, 0, 2]; // 2nd, 1st, 3rd
   return h(
@@ -68,6 +74,7 @@ function podium(entries) {
         h(
           "div",
           { class: `step p${i + 1}` },
+          avatarImg(entries[i].avatar, i === 0 ? 72 : 56, "podium-avatar"),
           h("div", { class: "name" }, entries[i].name),
           h("div", { class: "muted" }, `${entries[i].score.toLocaleString()} pts`),
           h("div", { class: "block" }, i + 1),

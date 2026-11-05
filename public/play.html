@@ -28,23 +28,57 @@
     const screen = (cls, ...children) => h("div", { class: `center-screen ${cls || ""}` }, ...children);
     const show = (...nodes) => { stopTimer(); clearTimeout(nextTimer); app.replaceChildren(...nodes); };
 
-    function nameForm(error) {
-      const input = h("input", { maxlength: "20", placeholder: "Your nickname", autocomplete: "off", "aria-label": "Nickname", style: "font-size:1.3rem;text-align:center;font-weight:700" });
+    // ---- join screen: pick an avatar + nickname
+    let avatarList = null; // numbers of the photos in /avatars
+    let avatar = null;     // the one this student picked
+    let lastName = "";
+    const store = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
+
+    async function nameForm(error) {
+      if (!avatarList) {
+        avatarList = await fetch("/api/avatars").then((r) => r.json()).then((d) => d.avatars).catch(() => []);
+        const saved = Number(store.get("ql_avatar"));
+        avatar = avatarList.includes(saved) ? saved : avatarList[Math.floor(Math.random() * avatarList.length)] ?? null;
+      }
+      const input = h("input", { maxlength: "20", placeholder: "Your nickname", autocomplete: "off", "aria-label": "Nickname", value: lastName, style: "font-size:1.3rem;text-align:center;font-weight:700" });
       const btn = h("button", { class: "btn-big", type: "submit" }, "Let's go");
-      show(screen("",
-        h("h2", null, "Enter a nickname"),
+      const preview = h("div", { class: "avatar-preview" });
+      const tiles = avatarList.map((n) =>
+        h("button", { type: "button", class: "avatar-tile", role: "radio", "aria-label": `Avatar ${n}`, onclick: () => choose(n) }, avatarImg(n, 56)));
+      function choose(n, scroll = true) {
+        avatar = n;
+        store.set("ql_avatar", String(n));
+        preview.replaceChildren(avatarImg(n, 112, "avatar-big"));
+        tiles.forEach((t, i) => {
+          const on = avatarList[i] === n;
+          t.classList.toggle("on", on);
+          t.setAttribute("aria-checked", on ? "true" : "false");
+          if (on && scroll) t.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        });
+      }
+      const shuffle = h("button", { type: "button", class: "btn-ghost btn-sm avatar-shuffle", title: "Random avatar", "aria-label": "Random avatar", onclick: () => {
+        const others = avatarList.filter((n) => n !== avatar);
+        if (others.length) choose(others[Math.floor(Math.random() * others.length)]);
+      } }, "🎲");
+      show(screen("join-screen",
         h("span", { class: "pill" }, `Game ${code}`),
-        h("form", { class: "stack", style: "width:min(360px,100%)", onsubmit: (e) => {
+        avatarList.length ? h("div", { class: "avatar-head" }, preview, shuffle) : null,
+        h("h2", { style: "margin:0" }, avatarList.length ? "Pick your avatar and nickname" : "Enter a nickname"),
+        h("form", { class: "stack", style: "width:min(420px,100%)", onsubmit: (e) => {
           e.preventDefault();
           btn.disabled = true;
+          lastName = input.value;
           join(input.value);
-        } }, input, btn),
+        } },
+          avatarList.length ? h("div", { class: "avatar-grid", role: "radiogroup", "aria-label": "Choose your avatar" }, tiles) : null,
+          input, btn),
         h("p", { class: "error" }, error || "")));
+      if (avatar != null) choose(avatar, false);
       input.focus();
     }
 
     function join(name) {
-      socket.emit("player:join", { code, name, playerId: sessionStorage.getItem(pidKey) }, (res) => {
+      socket.emit("player:join", { code, name, avatar, playerId: sessionStorage.getItem(pidKey) }, (res) => {
         if (res.error) {
           sessionStorage.removeItem(pidKey);
           return res.needName ? nameForm(name === undefined ? "" : res.error) : fatal(res.error);
@@ -68,14 +102,14 @@
     });
 
     socket.on("state", (s) => {
-      statusEl.textContent = `${s.name} · ${s.score.toLocaleString()} pts`;
+      statusEl.replaceChildren(avatarImg(s.avatar, 26), ` ${s.name} · ${s.score.toLocaleString()} pts`);
       ({ lobby, question, answered, result, done, finished })[s.view]?.(s);
     });
 
     function lobby(s) {
       show(screen("",
-        h("div", { class: "big-emoji pulse" }, "🎉"),
-        h("h2", null, `You're in, ${s.name}!`),
+        s.avatar != null ? h("div", { class: "pulse" }, avatarImg(s.avatar, 120, "avatar-big")) : h("div", { class: "big-emoji pulse" }, "🎉"),
+        h("h2", null, `You're in, ${s.name}! 🎉`),
         h("p", { class: "muted" }, s.quizTitle),
         h("p", null, s.mode === "live" ? "Watch the teacher's screen. The game starts soon." : "Waiting for the teacher to start the practice.")));
     }

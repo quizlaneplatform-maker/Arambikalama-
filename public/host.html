@@ -59,7 +59,7 @@
       if (!s.players.length) return h("p", { class: "muted" }, "Waiting for players to join…");
       return h("div", { class: "chips" },
         s.players.map((p) =>
-          h("span", { class: `chip${p.connected ? "" : " off"}`, title: p.connected ? "" : "Disconnected" }, p.name,
+          h("span", { class: `chip${p.connected ? "" : " off"}`, title: p.connected ? "" : "Disconnected" }, avatarImg(p.avatar, 28), p.name,
             kickable && h("button", { title: `Remove ${p.name}`, onclick: () => socket.emit("host:kick", { playerId: p.id }) }, "✕"))));
     }
 
@@ -120,7 +120,7 @@
           h("tbody", null, players.map((p, i) =>
             h("tr", null,
               h("td", null, i + 1),
-              h("td", null, p.name, p.connected ? "" : h("span", { class: "muted" }, " (offline)"), p.streak >= 3 ? ` 🔥${p.streak}` : ""),
+              h("td", null, h("span", { class: "player-cell" }, avatarImg(p.avatar, 28), p.name, p.connected ? "" : h("span", { class: "muted" }, " (offline)"), p.streak >= 3 ? ` 🔥${p.streak}` : "")),
               showProgress && h("td", null, h("div", { class: "row", style: "flex-wrap:nowrap" },
                 h("div", { class: "progress", style: "flex:1" }, h("div", { style: `width:${(p.answered / total) * 100}%` })),
                 h("span", { class: "muted" }, p.finished ? "Done" : `${p.answered}/${total}`))),

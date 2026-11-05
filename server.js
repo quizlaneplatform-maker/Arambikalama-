@@ -15,6 +15,14 @@ const PORT = Number(process.env.PORT) || 3000;
 const QUIZ_FILE = file("quizzes.json");
 const REPORT_FILE = file("reports.json");
 const MAX_PLAYERS = 200;
+// Player avatars: public/avatars/1.jpg … N.jpg. Players pick one by number when they join.
+const AVATARS = require("fs")
+  .readdirSync(path.join(__dirname, "public", "avatars"))
+  .map((f) => /^(\d+)\.jpg$/.exec(f)?.[1])
+  .filter(Boolean)
+  .map(Number)
+  .sort((a, b) => a - b);
+const cleanAvatar = (n) => (AVATARS.includes(Number(n)) ? Number(n) : AVATARS[Math.floor(Math.random() * AVATARS.length)] ?? null);
 const GAME_TTL_MS = 30 * 60 * 1000; // keep finished games around for late viewers
 
 // ---------------------------------------------------------------- storage
@@ -92,7 +100,9 @@ app.use((req, res, next) => {
   next();
 });
 app.use(express.json({ limit: "1mb" }));
+app.use("/avatars", express.static(path.join(__dirname, "public", "avatars"), { maxAge: "7d" }));
 app.use(express.static(path.join(__dirname, "public")));
+app.get("/api/avatars", (req, res) => res.json({ avatars: AVATARS }));
 
 app.use("/api/auth", authRouter({ onSignup, aiEnabled }));
 app.use(["/api/quizzes", "/api/reports", "/api/ai"], requireTeacher);
@@ -201,6 +211,7 @@ function leaderboard(g) {
     .map((p) => ({
       id: p.id,
       name: p.name,
+      avatar: p.avatar,
       score: p.score,
       streak: p.streak,
       correct: correctCount(p),
@@ -253,6 +264,7 @@ function playerState(g, p) {
     mode: g.mode,
     quizTitle: g.quiz.title,
     name: p.name,
+    avatar: p.avatar,
     score: p.score,
     streak: p.streak,
     rank: rankOf(g, p.id),
@@ -262,7 +274,7 @@ function playerState(g, p) {
   };
   if (g.status === "lobby") return { ...base, view: "lobby" };
   if (g.status === "finished")
-    return { ...base, view: "finished", podium: leaderboard(g).slice(0, 5).map(({ name, score }) => ({ name, score })) };
+    return { ...base, view: "finished", podium: leaderboard(g).slice(0, 5).map(({ name, avatar, score }) => ({ name, avatar, score })) };
   if (g.mode === "self" && p.finished) return { ...base, view: "done" };
 
   const qi = g.mode === "live" ? g.qIndex : p.qIndex;
@@ -377,6 +389,7 @@ function buildReport(g) {
     const p = g.players.get(e.id);
     return {
       name: p.name,
+      avatar: p.avatar,
       score: p.score,
       correct: e.correct,
       answered: e.answered,
@@ -497,7 +510,7 @@ io.on("connection", (socket) => {
     revealIfEveryoneAnswered(g);
   });
 
-  socket.on("player:join", ({ code, name, playerId } = {}, ack) => {
+  socket.on("player:join", ({ code, name, avatar, playerId } = {}, ack) => {
     const g = games.get(String(code ?? "").trim());
     if (!g) return reply(ack, { error: "No game found with that code." });
 
@@ -509,7 +522,7 @@ io.on("connection", (socket) => {
       if ([...g.players.values()].some((x) => x.name.toLowerCase() === clean.toLowerCase()))
         return reply(ack, { error: "That nickname is taken. Try another.", needName: true });
       if (g.players.size >= MAX_PLAYERS) return reply(ack, { error: "This game is full." });
-      p = { id: newId(), name: clean, score: 0, streak: 0, answers: {}, qIndex: 0, finished: false, feedback: false };
+      p = { id: newId(), name: clean, avatar: cleanAvatar(avatar), score: 0, streak: 0, answers: {}, qIndex: 0, finished: false, feedback: false };
       g.players.set(p.id, p);
       if (g.mode === "self" && g.status === "running") serveSelf(g, p);
     }
