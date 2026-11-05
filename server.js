@@ -22,7 +22,19 @@ const AVATARS = require("fs")
   .filter(Boolean)
   .map(Number)
   .sort((a, b) => a - b);
-const cleanAvatar = (n) => (AVATARS.includes(Number(n)) ? Number(n) : AVATARS[Math.floor(Math.random() * AVATARS.length)] ?? null);
+// Answer sound clips: public/sounds/correct/*.mp3 and public/sounds/wrong/*.mp3 (one is picked at random).
+const listSounds = (kind) => {
+  try {
+    return require("fs")
+      .readdirSync(path.join(__dirname, "public", "sounds", kind))
+      .filter((f) => /^[\w-]+\.mp3$/i.test(f))
+      .map((f) => `/sounds/${kind}/${f}`);
+  } catch {
+    return [];
+  }
+};
+const SOUNDS = { correct: listSounds("correct"), wrong: listSounds("wrong") };
+const cleanAvatar =(n) => (AVATARS.includes(Number(n)) ? Number(n) : AVATARS[Math.floor(Math.random() * AVATARS.length)] ?? null);
 const GAME_TTL_MS = 30 * 60 * 1000; // keep finished games around for late viewers
 
 // ---------------------------------------------------------------- storage
@@ -101,8 +113,10 @@ app.use((req, res, next) => {
 });
 app.use(express.json({ limit: "1mb" }));
 app.use("/avatars", express.static(path.join(__dirname, "public", "avatars"), { maxAge: "7d" }));
+app.use("/sounds", express.static(path.join(__dirname, "public", "sounds"), { maxAge: "7d" }));
 app.use(express.static(path.join(__dirname, "public")));
 app.get("/api/avatars", (req, res) => res.json({ avatars: AVATARS }));
+app.get("/api/sounds", (req, res) => res.json(SOUNDS));
 
 app.use("/api/auth", authRouter({ onSignup, aiEnabled }));
 app.use(["/api/quizzes", "/api/reports", "/api/ai"], requireTeacher);

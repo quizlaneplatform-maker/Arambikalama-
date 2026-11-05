@@ -158,6 +158,7 @@
     paintMute();
     muteBtn.onclick = () => {
       muted = !muted;
+      if (muted) { try { playingClip?.stop(); } catch {} }
       try { localStorage.setItem("ql_muted", muted ? "1" : "0"); } catch {}
       paintMute();
     };
@@ -167,6 +168,45 @@
       if (!Ctx) return;
       audio ??= new Ctx();
       if (audio.state === "suspended") audio.resume();
+      loadClips();
+    }
+
+    // ---- meme clips: /sounds/correct/*.mp3 and /sounds/wrong/*.mp3, one picked at random
+    const clips = { correct: [], wrong: [] };
+    const lastClip = { correct: -1, wrong: -1 };
+    const clipFiles = fetch("/api/sounds").then((r) => r.json()).catch(() => ({ correct: [], wrong: [] }));
+    // Download the files right away (no audio context needed yet) so they're ready by the first answer.
+    const clipBytes = clipFiles.then((list) => Object.fromEntries(["correct", "wrong"].map((kind) => [kind,
+      (list[kind] || []).map((url) => fetch(url).then((r) => (r.ok ? r.arrayBuffer() : null)).catch(() => null))])));
+    let clipsLoading = false;
+    async function loadClips() {
+      if (clipsLoading || !audio) return;
+      clipsLoading = true;
+      const bytes = await clipBytes;
+      for (const kind of ["correct", "wrong"]) {
+        for (const p of bytes[kind]) {
+          const buf = await p;
+          if (!buf) continue;
+          try { clips[kind].push(await audio.decodeAudioData(buf)); } catch {} // skip a file the browser can't decode
+        }
+      }
+    }
+    let playingClip = null; // stop the previous clip so two never overlap
+    function playClip(kind) {
+      const list = clips[kind];
+      if (!list.length) return false;
+      let i = Math.floor(Math.random() * list.length);
+      if (list.length > 1 && i === lastClip[kind]) i = (i + 1 + Math.floor(Math.random() * (list.length - 1))) % list.length; // no repeats in a row
+      lastClip[kind] = i;
+      const src = audio.createBufferSource();
+      const gain = audio.createGain();
+      gain.gain.value = 0.9;
+      src.buffer = list[i];
+      src.connect(gain).connect(audio.destination);
+      src.start();
+      playingClip?.stop?.();
+      playingClip = src;
+      return true;
     }
     addEventListener("pointerdown", unlockAudio);
     addEventListener("keydown", unlockAudio);
@@ -188,6 +228,8 @@
 
     function playSound(kind) {
       if (muted || !audio || audio.state !== "running") return;
+      if (playClip(kind === "correct" ? "correct" : "wrong")) return;
+      // Built-in synth sounds: only used if the clips haven't loaded (or none are installed).
       if (kind === "correct") {
         // bright rising arpeggio C5-E5-G5-C6, then a sparkle
         [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => tone(f, i * 0.09, 0.32, { type: "triangle", vol: 0.2 }));

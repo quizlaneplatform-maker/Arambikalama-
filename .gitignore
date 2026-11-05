@@ -13,3 +13,5 @@ wayground-design.rar
 
 # original full-size avatar photos (resized copies live in public/avatars)
 Avatar/
+# original meme clips (the app uses the copies in public/sounds)
+MEMES SOUND/
