@@ -486,3 +486,24 @@ html[data-mode="dark"] .topbar { border-bottom: 1px solid var(--dark-line); }
   .player-top .logo { font-size: 0; }          /* keep just the "A" badge so avatar + name + points fit */
   .player-top .logo::before { margin-right: 0; }
 }
+
+/* ---- Correct answer: party poppers in both bottom corners + confetti canvas */
+.confetti { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 60; }
+.popper { position: fixed; bottom: 6px; z-index: 61; font-size: clamp(3rem, 12vw, 5rem); line-height: 1; pointer-events: none; }
+.popper.left { left: 6px; animation: popLeft 1.6s ease-out forwards; }
+.popper.right { right: 6px; animation: popRight 1.6s ease-out forwards; }
+/* 🎉 points up-right by default; mirror it on the right so both aim at the middle */
+@keyframes popLeft {
+  0% { transform: scale(0.3) rotate(20deg); opacity: 0; }
+  12% { transform: scale(1.25) rotate(-12deg); opacity: 1; }
+  24% { transform: scale(1) rotate(0); }
+  80% { opacity: 1; }
+  100% { transform: scale(0.9) translateY(10px); opacity: 0; }
+}
+@keyframes popRight {
+  0% { transform: scaleX(-1) scale(0.3) rotate(20deg); opacity: 0; }
+  12% { transform: scaleX(-1) scale(1.25) rotate(-12deg); opacity: 1; }
+  24% { transform: scaleX(-1) scale(1) rotate(0); }
+  80% { opacity: 1; }
+  100% { transform: scaleX(-1) scale(0.9) translateY(10px); opacity: 0; }
+}
