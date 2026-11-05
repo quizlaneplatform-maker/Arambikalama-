@@ -6,10 +6,10 @@
   <title>Teacher Dashboard · Aarambikallama</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400..800;1,9..40,400&family=Kalam:wght@400;700&display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,400..800&display=swap" />
   <link rel="stylesheet" href="/styles.css" />
   <script src="/theme.js"></script>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%23ff319f%27/%3E%3Ctext x=%2716%27 y=%2723%27 font-size=%2720%27 font-family=%27sans-serif%27 font-weight=%27800%27 fill=%27white%27 text-anchor=%27middle%27%3EA%3C/text%3E%3C/svg%3E" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%2715%27 fill=%27%23ffc93c%27/%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%2712%27 fill=%27%23ff3d6e%27/%3E%3Ctext x=%2716%27 y=%2722%27 font-size=%2716%27 font-family=%27sans-serif%27 font-weight=%27900%27 fill=%27white%27 text-anchor=%27middle%27%3EA%3C/text%3E%3C/svg%3E" />
 </head>
 <body>
   <div id="top"></div>
@@ -30,7 +30,7 @@
     teacherMenu().then((menu) => document.getElementById("top").replaceWith(topbar(menu)));
     api("/api/auth/me").then((me) => (document.getElementById("hello").textContent = `Hi, ${me.user.name.split(" ")[0]} 👋`));
     const err = document.getElementById("err");
-    const ACCENTS = ["var(--peach)", "var(--yellow)", "var(--lavender)", "var(--teal)"];
+    const ACCENTS = ["var(--opt0)", "var(--opt1)", "var(--opt2)", "var(--opt3)"];
     const accClass = (a) => (a == null ? "" : a >= 75 ? "hi" : a >= 50 ? "mid" : "lo");
     let quizList = [], reportList = [];
 
@@ -53,7 +53,7 @@
       const newCard = h("a", { class: "new-card", href: "/editor.html" }, h("span", { class: "plus" }, "+"), "Create a new quiz");
       box.replaceChildren(
         ...quizList.map((q, i) =>
-          h("div", { class: "card quiz-card", style: `--accent:${ACCENTS[i % ACCENTS.length]}` },
+          h("div", { class: "card quiz-card", style: `--tile:${ACCENTS[i % ACCENTS.length]}` },
             h("div", { class: "stack-sm" },
               h("h3", null, q.title),
               h("div", { class: "meta" },

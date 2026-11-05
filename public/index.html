@@ -6,16 +6,16 @@
   <title>Aarambikallama</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400..800;1,9..40,400&family=Kalam:wght@400;700&display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,400..800&family=Kalam:wght@700&display=swap" />
   <link rel="stylesheet" href="/styles.css" />
   <script src="/theme.js"></script>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%23ff319f%27/%3E%3Ctext x=%2716%27 y=%2723%27 font-size=%2720%27 font-family=%27sans-serif%27 font-weight=%27800%27 fill=%27white%27 text-anchor=%27middle%27%3EA%3C/text%3E%3C/svg%3E" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%2715%27 fill=%27%23ffc93c%27/%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%2712%27 fill=%27%23ff3d6e%27/%3E%3Ctext x=%2716%27 y=%2722%27 font-size=%2716%27 font-family=%27sans-serif%27 font-weight=%27900%27 fill=%27white%27 text-anchor=%27middle%27%3EA%3C/text%3E%3C/svg%3E" />
 </head>
 <body>
   <header class="topbar">
     <a class="logo" href="/">Aarambi<span>kallama!</span></a>
     <div class="row">
-      <a class="nav-link hide-sm" href="#join">Enter code</a>
+      <a class="nav-link hide-sm" href="#how">How it works</a>
       <span class="nav-sep hide-sm"></span>
       <a class="nav-link" href="/login.html">Log in</a>
       <a class="btn btn-sm" href="/login.html?mode=signup">Sign up</a>
@@ -23,55 +23,61 @@
   </header>
 
   <section class="hero">
-    <h1>Learn it. Race it. Own it.</h1>
-    <p>Live quiz games, self-paced practice and instant reports, all in one classroom tool.</p>
+    <h1>Learn it. Race it.<br /> Own it.</h1>
+    <p class="lede">Live quiz games for your classroom. The teacher hosts, the class plays, everyone sees the scores.</p>
     <form class="join-card" id="join">
-      <label for="code">Game code</label>
-      <input id="code" inputmode="numeric" autocomplete="off" placeholder="Enter code" aria-label="Game code" />
-      <button class="btn-big" type="submit">Join</button>
+      <label for="code">Got a game code from your teacher?</label>
+      <input id="code" inputmode="numeric" autocomplete="off" placeholder="000000" />
+      <button class="btn-big" type="submit">Join game</button>
     </form>
-    <p class="error" id="err"></p>
-    <div class="cta">
-      <a class="btn btn-role" href="/login.html?mode=signup"><span class="eyebrow-text">Teachers</span><span class="label">Sign up free</span></a>
-      <a class="btn btn-ghost btn-role" href="/login.html"><span class="eyebrow-text">Have an account?</span><span class="label">Log in</span></a>
-    </div>
+    <p class="error" id="err" role="alert"></p>
+    <p class="alt">Teaching? <a href="/login.html?mode=signup">Host your first game free</a></p>
   </section>
 
-  <section class="band band-oat">
+  <section class="section" id="how">
     <div class="inner">
-      <h2 style="text-align:center;font-size:clamp(2rem,5vw,3.4rem);max-width:16ch;margin:0 auto 1.5rem">One quiz, every way your class plays</h2>
-      <div class="tabs" aria-hidden="true" style="margin-bottom:2rem">
-        <span class="on">⚡ Live</span><span>🧭 Self-paced</span><span>✨ AI questions</span><span>📊 Reports</span>
+      <h2>From blank page to game night</h2>
+      <p class="intro">Four steps, and most teachers are done before the bell.</p>
+      <ol class="running-order">
+        <li><h3>Write the questions</h3><p>Type them yourself, or give AI a topic and edit what it drafts.</p></li>
+        <li><h3>Share the code</h3><p>Students join on any phone or laptop with a 6-digit code. No accounts.</p></li>
+        <li><h3>Play</h3><p>Fast answers and streaks score bonus points. The answer is revealed once everyone has answered.</p></li>
+        <li><h3>Read the report</h3><p>See who got what, and which question the class found hardest.</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0">
+    <div class="inner">
+      <h2>Two ways to play</h2>
+      <div class="modes">
+        <article class="lectern" style="--lectern:var(--opt0)">
+          <h3>Live game</h3>
+          <p class="muted">The whole class answers the same question at the same time, on your big screen.</p>
+          <ul>
+            <li>A countdown on every question</li>
+            <li>A leaderboard after each reveal</li>
+            <li>A podium for the top three</li>
+          </ul>
+        </article>
+        <article class="lectern" style="--lectern:var(--opt1)">
+          <h3>Self-paced</h3>
+          <p class="muted">Students work through the quiz on their own while you watch their progress.</p>
+          <ul>
+            <li>Good for homework and revision</li>
+            <li>Late joiners can still play</li>
+            <li>Live progress for every student</li>
+          </ul>
+        </article>
       </div>
-      <div class="tile-grid">
-        <a class="tile" href="/login.html?mode=signup" style="--tile:var(--peach)"><div><div class="tile-art">⚡</div><p style="margin-top:1rem">Everyone answers together. Speed and streaks score bonus points.</p></div><h3>Live games</h3></a>
-        <a class="tile" href="/login.html?mode=signup" style="--tile:var(--yellow)"><div><div class="tile-art">🧭</div><p style="margin-top:1rem">Students work at their own pace while the leaderboard updates.</p></div><h3>Self-paced</h3></a>
-        <a class="tile" href="/login.html?mode=signup" style="--tile:var(--lavender)"><div><div class="tile-art">✨</div><p style="margin-top:1rem">Type a topic and get ready-to-edit questions in seconds.</p></div><h3>AI questions</h3></a>
-        <a class="tile" href="/login.html?mode=signup" style="--tile:var(--teal)"><div><div class="tile-art">📊</div><p style="margin-top:1rem">See the hardest questions and how every student did.</p></div><h3>Reports</h3></a>
+      <div class="cue-cards">
+        <div class="cue hand">Turn the sound on. Right answers get a celebration! 🎉<span class="sig">Host tip</span></div>
+        <div class="cue hand">Quiz tomorrow? Type the topic, let AI draft it, done before the bell.<span class="sig">Host tip</span></div>
       </div>
     </div>
   </section>
 
-  <section class="band band-dark">
-    <div class="inner split">
-      <div>
-        <h2 style="font-size:clamp(2rem,4.5vw,3rem)">Built for a busy classroom</h2>
-        <p class="muted" style="font-size:1.1rem">From a blank page to a buzzing room in a couple of minutes.</p>
-        <ul class="checks">
-          <li>Write questions yourself or let AI draft them, then tweak anything.</li>
-          <li>Share a 6-digit code. Students join from any phone or laptop, no account needed.</li>
-          <li>The answer is revealed once everyone has answered, so no one gets left behind.</li>
-          <li>Finish with a report that shows exactly what to reteach.</li>
-        </ul>
-      </div>
-      <div style="display:grid;gap:1.5rem;justify-items:center;padding:1rem">
-        <div class="note hand">Tip: turn the sound on. Right answers get a little celebration! 🎉<span class="sig">Aarambikallama tips #1</span></div>
-        <div class="note alt hand" style="max-width:85%">Quiz tomorrow? Type the topic, let AI draft it, done before the bell.<span class="sig">Aarambikallama tips #2</span></div>
-      </div>
-    </div>
-  </section>
-
-  <footer class="site-foot">Aarambikallama · made for classrooms</footer>
+  <footer class="site-foot"><strong>Aarambikallama!</strong> · quiz games for classrooms</footer>
   <script>
     const form = document.getElementById("join");
     const input = document.getElementById("code");
@@ -79,7 +85,7 @@
     form.addEventListener("submit", (e) => {
       e.preventDefault();
       if (!/^\d{6}$/.test(input.value)) {
-        document.getElementById("err").textContent = "Game codes are 6 digits.";
+        document.getElementById("err").textContent = "Game codes are 6 digits. Check the code on your teacher's screen.";
         return;
       }
       location.href = `/play.html?code=${input.value}`;

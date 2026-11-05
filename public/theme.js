@@ -1,22 +1,24 @@
 // Theme switcher: preset palettes, light/dark/auto mode and a custom accent colour.
 // Loaded in <head> so the saved theme is applied before the page paints (no flash).
 (function () {
+  // Game-show sets. night* = the stage (dark mode), day* = daytime rehearsal (light mode).
   const THEMES = {
-    blackberry: { name: "Blackberry", dark: "#3b142a", dark2: "#4a1c36", dark3: "#592643", darkLine: "#62304d", light: "#f3efda", light100: "#faf7eb", lightHover: "#e8dfb0", surface2: "#efe7c6", line: "#e3d9b4", muted: "#7a5a6b", accent: "#ff319f", ink: "#ffffff" },
-    midnight: { name: "Midnight", dark: "#0f1a33", dark2: "#172446", dark3: "#1f3058", darkLine: "#2a3a63", light: "#eef1f8", light100: "#f8f9fd", lightHover: "#d9e0f0", surface2: "#e3e8f4", line: "#d3dbec", muted: "#56607a", accent: "#3a66f0" },
-    forest: { name: "Forest", dark: "#12302a", dark2: "#1a3f37", dark3: "#245046", darkLine: "#2f5a4f", light: "#eef0e2", light100: "#f8f9f0", lightHover: "#dde2c4", surface2: "#e4e8d2", line: "#d5dbbf", muted: "#5a6b5f", accent: "#2fbf71" },
-    ocean: { name: "Ocean", dark: "#002f42", dark2: "#0a3d52", dark3: "#154c63", darkLine: "#1f5a70", light: "#e9f4f3", light100: "#f6fbfb", lightHover: "#cfe6e3", surface2: "#dcecea", line: "#c9e0dd", muted: "#4d6a70", accent: "#ff6b5b" },
-    grape: { name: "Grape", dark: "#241a40", dark2: "#2f2352", dark3: "#3a2b63", darkLine: "#4a3a78", light: "#f3effb", light100: "#faf8fe", lightHover: "#e1d8f3", surface2: "#e9e2f6", line: "#ddd3f0", muted: "#6a5f86", accent: "#9b5cff" },
-    sunset: { name: "Sunset", dark: "#3a1a0c", dark2: "#4a2414", dark3: "#5c2f1c", darkLine: "#6b3c25", light: "#fbf1e4", light100: "#fffaf3", lightHover: "#f1dcc0", surface2: "#f5e6d1", line: "#ecd8bd", muted: "#7d5f4a", accent: "#ff7a1a" },
+    primetime: { name: "Prime time", night: ["#140a33", "#1f1248", "#2b1a60", "#3a2878", "#b6a9e0"], day: ["#f4f0ff", "#ffffff", "#ebe4fd", "#dcd2f5", "#5e5385"], accent: "#ff3d6e", gold: "#ffc93c" },
+    latenight: { name: "Late night", night: ["#071a2e", "#0d2742", "#143457", "#1f4569", "#9fbbd6"], day: ["#eef4fa", "#ffffff", "#e0eaf4", "#cfdcea", "#4b6178"], accent: "#ff5a36", gold: "#ffd166" },
+    studio: { name: "Studio red", night: ["#2a0a14", "#3b0f1e", "#4e1529", "#651d36", "#e2aab9"], day: ["#fff1f3", "#ffffff", "#fde3e8", "#f5ccd5", "#7a4452"], accent: "#ff3b3b", gold: "#ffd54a" },
+    neon: { name: "Neon", night: ["#0b2622", "#12352f", "#19453d", "#23574d", "#9fd6c8"], day: ["#ecf8f5", "#ffffff", "#dcf1ec", "#c6e6de", "#46685f"], accent: "#ff4fd8", gold: "#e8ff5c" },
+    arcade: { name: "Arcade", night: ["#1a0f3d", "#24155a", "#2f1d70", "#3e2a8a", "#bfb2f0"], day: ["#f1efff", "#ffffff", "#e5e0ff", "#d5cdfa", "#57509a"], accent: "#2bd9fe", gold: "#ff9f1c" },
+    sunset: { name: "Sunset", night: ["#2b1240", "#3a1955", "#4a2169", "#5d2c80", "#d8b4e8"], day: ["#fbf0f6", "#ffffff", "#f5e1ee", "#ecd0e2", "#6e4766"], accent: "#ff7a1a", gold: "#ffd166" },
   };
-  const ACCENTS = ["#ff319f", "#3a66f0", "#2fbf71", "#ff6b5b", "#9b5cff", "#ff7a1a", "#e8b100", "#00a6b4"];
+  const ACCENTS = ["#ff3d6e", "#ff5a36", "#ff7a1a", "#2bd9fe", "#3a66f0", "#9b5cff", "#ff4fd8", "#2fbf71"];
   const KEY = "ql_theme";
   const root = document.documentElement;
   const darkQuery = matchMedia("(prefers-color-scheme: dark)");
 
-  let state = { theme: "blackberry", mode: "light", accent: null };
+  let state = { theme: "primetime", mode: "dark", accent: null };
   try { Object.assign(state, JSON.parse(localStorage.getItem(KEY) || "{}")); } catch {}
-  if (!THEMES[state.theme]) state.theme = "blackberry";
+  // Old saved themes from the previous design fall back to the new default stage.
+  if (!THEMES[state.theme]) Object.assign(state, { theme: "primetime", mode: "dark", accent: null });
 
   // ---- colour maths
   const hexRgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
@@ -29,13 +31,13 @@
   function apply(animate) {
     const t = THEMES[state.theme];
     const accent = state.accent || t.accent;
+    const [n1, n2, n3, nLine, nMuted] = t.night;
+    const [d1, d2, d3, dLine, dMuted] = t.day;
     const vars = {
-      "--blackberry": t.dark, "--blackberry-2": t.dark2, "--blackberry-3": t.dark3, "--blackberry-press": mix(t.dark, "#000000", 0.4), "--dark-line": t.darkLine,
-      "--oat": t.light, "--oat-100": t.light100, "--oat-hover": t.lightHover, "--oat-press": mix(t.lightHover, "#000000", 0.08),
-      "--surface-2": t.surface2, "--line": t.line, "--muted": t.muted,
-      "--magenta": accent, "--magenta-hover": mix(accent, "#ffffff", 0.3), "--magenta-press": mix(accent, "#000000", 0.15),
-      "--brand-ink": state.accent || !t.ink ? inkFor(accent, t.dark) : t.ink,
-      "--opt0": accent,
+      "--night": n1, "--night-2": n2, "--night-3": n3, "--night-line": nLine, "--night-muted": nMuted,
+      "--day": d1, "--day-2": d2, "--day-3": d3, "--day-line": dLine, "--day-muted": dMuted,
+      "--accent": accent, "--accent-hover": mix(accent, "#ffffff", 0.25), "--accent-press": mix(accent, "#000000", 0.3),
+      "--accent-ink": inkFor(accent, n1), "--gold": t.gold,
     };
     if (animate) {
       root.classList.add("theme-anim");
@@ -54,7 +56,7 @@
     };
     document.body ? applyBody() : document.addEventListener("DOMContentLoaded", applyBody, { once: true });
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.content = t.dark;
+    if (meta) meta.content = n1;
   }
 
   function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} }
@@ -91,7 +93,7 @@
         el("div", { class: "theme-grid", role: "radiogroup", "aria-label": "Theme" },
           ...Object.entries(THEMES).map(([id, th]) => {
             const pv = el("span", { class: "pv", "aria-hidden": "true" },
-              el("i", { style: `background:${th.dark}` }), el("i", { style: `background:${th.light}` }), el("i", { style: `background:${th.accent}` }));
+              el("i", { style: `background:${th.night[0]}` }), el("i", { style: `background:${th.gold}` }), el("i", { style: `background:${th.accent}` }));
             return el("button", { type: "button", class: "theme-card", role: "radio", "aria-checked": String(id === state.theme), "data-theme-id": id,
               onclick: () => set({ theme: id, accent: null }),
               onmouseenter: () => previewTheme(id), onmouseleave: () => apply(true), onfocus: () => previewTheme(id), onblur: () => apply(true) }, pv, th.name);
@@ -109,7 +111,7 @@
               oninput: (e) => { state.accent = e.target.value; apply(false); }, onchange: (e) => set({ accent: e.target.value }) }))),
         el("button", { type: "button", class: "btn-sm theme-preview-btn", tabindex: "-1" }, "Preview button")),
       el("div", { class: "foot" },
-        el("button", { type: "button", class: "btn-ghost btn-sm", onclick: () => set({ theme: "blackberry", mode: "light", accent: null }) }, "↺ Reset"),
+        el("button", { type: "button", class: "btn-ghost btn-sm", onclick: () => set({ theme: "primetime", mode: "dark", accent: null }) }, "↺ Reset"),
         el("button", { type: "button", class: "btn-sm", onclick: close }, "Done")),
     );
   }
