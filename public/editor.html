@@ -19,6 +19,7 @@
       <span class="muted small" id="count"></span>
       <p class="error" id="err" role="alert" style="flex-basis:100%"></p>
     </div>
+    <div id="import"></div>
     <div id="ai"></div>
     <div id="questions" class="stack"></div>
     <button class="new-card" id="add" style="min-height:90px;width:100%;background:transparent;box-shadow:none">+ Add question</button>
@@ -34,11 +35,11 @@
       document.getElementById("top").replaceWith(topbar(menu)),
     );
 
-    // ---- AI question generation (Grok)
-    function aiPanel(enabled) {
+    // ---- AI question generation (Groq or xAI Grok, whichever key the server has)
+    function aiPanel(enabled, name = "AI") {
       const box = document.getElementById("ai");
       if (!enabled) {
-        box.replaceChildren(h("div", { class: "card ai-card muted" }, "✨ AI question generation is off. Add your Grok key as ", h("code", null, "XAI_API_KEY"), " in the .env file and restart the server to turn it on."));
+        box.replaceChildren(h("div", { class: "card ai-card muted" }, "✨ AI question generation is off. Add a Groq key as ", h("code", null, "GROQ_API_KEY"), " (or an xAI key as ", h("code", null, "XAI_API_KEY"), ") in the .env file and restart the server to turn it on."));
         return;
       }
       const topic = h("input", { maxlength: "300", placeholder: "e.g. The water cycle, or paste a short passage" });
@@ -54,7 +55,7 @@
           err.textContent = "";
           go.disabled = true;
           status.className = "muted";
-          status.textContent = "Grok is writing questions… this can take up to a minute.";
+          status.textContent = `${name} is writing questions… this can take up to a minute.`;
           try {
             const res = await api("/api/ai/generate", { method: "POST", body: {
               topic: topic.value, count: Number(count.value), difficulty: difficulty.value, gradeLevel: grade.value, notes: notes.value } });
@@ -70,7 +71,7 @@
             go.disabled = false;
           }
         } },
-          h("div", null, h("h3", { style: "margin:0" }, "✨ Generate questions with AI"), h("p", { class: "muted small", style: "margin:0" }, "Powered by Grok. Review every question before saving.")),
+          h("div", null, h("h3", { style: "margin:0" }, "✨ Generate questions with AI"), h("p", { class: "muted small", style: "margin:0" }, `Powered by ${name}. Review every question before saving.`)),
           h("label", { class: "field" }, h("span", null, "Topic"), topic),
           h("div", { class: "ai-grid" }, count, difficulty, grade),
           notes,
@@ -79,7 +80,66 @@
         ),
       );
     }
-    api("/api/auth/me").then((me) => aiPanel(me.aiEnabled));
+    api("/api/auth/me").then((me) => aiPanel(me.aiEnabled, me.aiName || "AI"));
+
+    // ---- import questions from a Word document (.docx)
+    function importPanel() {
+      const status = h("p", { class: "muted small", role: "status", style: "margin:0" });
+      const input = h("input", { type: "file", accept: ".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document", class: "visually-hidden", tabindex: "-1", "aria-hidden": "true",
+        onchange: () => { if (input.files[0]) upload(input.files[0]); input.value = ""; } });
+      const pick = h("button", { type: "button", onclick: () => input.click() }, "📄 Choose Word file");
+
+      async function upload(file) {
+        err.textContent = "";
+        if (!/\.docx$/i.test(file.name)) {
+          status.className = "error small";
+          status.textContent = /\.doc$/i.test(file.name)
+            ? "This is an old .doc file. Open it in Word, choose Save As → Word Document (.docx), then import that."
+            : "Choose a Word document (.docx).";
+          return;
+        }
+        pick.disabled = true;
+        status.className = "muted small";
+        status.textContent = `Reading ${file.name}…`;
+        try {
+          const res = await fetch("/api/import/word", { method: "POST", headers: { "Content-Type": "application/octet-stream", "X-File-Name": encodeURIComponent(file.name) }, body: file });
+          if (res.status === 401) return goToLogin();
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || `Import failed (${res.status}).`);
+          const onlyBlank = questions.length === 1 && !questions[0].text.trim() && questions[0].options.every((o) => !o.trim());
+          questions = onlyBlank ? data.questions : questions.concat(data.questions);
+          if (!titleInput.value.trim()) titleInput.value = data.title;
+          render();
+          const n = data.questions.length;
+          const missing = data.questions.filter((q) => q.needsAnswer).length;
+          status.className = missing ? "error small" : "muted small";
+          status.replaceChildren(
+            `Added ${n} question${n === 1 ? "" : "s"} from ${file.name}. `,
+            missing ? `${missing} ${missing === 1 ? "needs" : "need"} a correct answer: look for ⚠ below. ` : "Check them over, then save. ",
+            ...(data.warnings.length ? [h("br"), ...data.warnings.flatMap((w) => [w, h("br")])] : []));
+        } catch (e2) {
+          status.className = "error small";
+          status.textContent = e2.message;
+        } finally {
+          pick.disabled = false;
+        }
+      }
+
+      const card = h("div", { class: "card import-card stack",
+        ondragover: (e) => { e.preventDefault(); card.classList.add("drag"); },
+        ondragleave: () => card.classList.remove("drag"),
+        ondrop: (e) => { e.preventDefault(); card.classList.remove("drag"); const f = e.dataTransfer.files[0]; if (f) upload(f); } },
+        h("div", null,
+          h("h3", { style: "margin:0" }, "📄 Import questions from Word"),
+          h("p", { class: "muted small", style: "margin:0" },
+            "Choose or drop a .docx file. Number each question (1., 2., …), put the options below it as A), B), C), D), and mark the answer with a line like ",
+            h("code", null, "Answer: B"), ", a ✓ or * next to it, or an answer key at the end.")),
+        h("div", { class: "row" }, pick, h("a", { class: "small", href: "/quiz-template.docx", download: "quiz-template.docx" }, "Download a sample Word file")),
+        status,
+        input);
+      document.getElementById("import").replaceChildren(card);
+    }
+    importPanel();
 
     // ---- question pictures (stored in Neon Object Storage; the server keeps only the key)
     let imagesOn = false;
@@ -149,7 +209,7 @@
         ...questions.map((q, qi) =>
           h(
             "div",
-            { class: "card q-card stack" },
+            { class: `card q-card stack${q.needsAnswer ? " needs-answer" : ""}` },
             h(
               "div",
               { class: "row spread" },
@@ -166,13 +226,15 @@
             ),
             h("textarea", { rows: "2", maxlength: "300", placeholder: "Type your question", "aria-label": `Question ${qi + 1} text`, oninput: (e) => (q.text = e.target.value) }, q.text),
             imageField(q, qi),
-            h("div", { class: "muted small" }, "Select the circle next to the correct answer."),
+            q.needsAnswer
+              ? h("div", { class: "answer-warning small" }, "⚠ The Word file didn't mark a correct answer for this question. Select the circle next to the right one.")
+              : h("div", { class: "muted small" }, "Select the circle next to the correct answer."),
             ...q.options.map((opt, oi) =>
               h(
                 "div",
-                { class: `opt-row${q.correctIndex === oi ? " correct" : ""}` },
+                { class: `opt-row${q.correctIndex === oi && !q.needsAnswer ? " correct" : ""}` },
                 h("span", { class: "swatch", style: `background:var(--opt${oi})` }, SHAPES[oi]),
-                h("input", { type: "radio", name: `correct-${qi}`, checked: q.correctIndex === oi, "aria-label": `Answer ${oi + 1} is correct`, onchange: () => { q.correctIndex = oi; render(); } }),
+                h("input", { type: "radio", name: `correct-${qi}`, checked: q.correctIndex === oi && !q.needsAnswer, "aria-label": `Answer ${oi + 1} is correct`, onchange: () => { q.correctIndex = oi; delete q.needsAnswer; render(); } }),
                 h("input", { maxlength: "120", placeholder: `Answer ${oi + 1}`, "aria-label": `Question ${qi + 1}, answer ${oi + 1}`, value: opt, oninput: (e) => (q.options[oi] = e.target.value) }),
                 h("button", {
                   class: "btn-ghost btn-sm", title: "Remove answer", disabled: q.options.length <= 2,
@@ -210,6 +272,14 @@
 
     async function save() {
       err.textContent = "";
+      // Imported questions whose answer wasn't recognised must not be saved with a guessed answer.
+      const unanswered = questions.findIndex((q) => q.needsAnswer);
+      if (unanswered >= 0) {
+        err.textContent = `Pick the correct answer for question ${unanswered + 1} before saving.`;
+        toast(err.textContent);
+        list.children[unanswered]?.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
       saveBtn.disabled = true;
       try {
         const body = { title: titleInput.value, questions };

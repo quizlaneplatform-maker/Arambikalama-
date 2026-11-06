@@ -7,9 +7,10 @@ const express = require("express");
 const { Server } = require("socket.io");
 const { file, readJson, writeJson, newId } = require("./lib/store");
 const { authRouter, requireTeacher, userFromCookieHeader } = require("./lib/auth");
-const { aiEnabled, generateQuestions } = require("./lib/ai");
+const { aiEnabled, aiName, generateQuestions } = require("./lib/ai");
 const { checkMail, assertMailForProduction } = require("./lib/mailer");
 const storage = require("./lib/storage");
+const { importWord } = require("./lib/word-import");
 assertMailForProduction();
 
 const PORT = Number(process.env.PORT) || 3000;
@@ -121,8 +122,18 @@ app.use(express.static(path.join(__dirname, "public")));
 app.get("/api/avatars", (req, res) => res.json({ avatars: AVATARS }));
 app.get("/api/sounds", (req, res) => res.json(SOUNDS));
 
-app.use("/api/auth", authRouter({ onSignup, aiEnabled }));
-app.use(["/api/quizzes", "/api/reports", "/api/ai", "/api/images"], requireTeacher);
+app.use("/api/auth", authRouter({ onSignup, aiEnabled, aiName }));
+app.use(["/api/quizzes", "/api/reports", "/api/ai", "/api/images", "/api/import"], requireTeacher);
+
+// ---- import a quiz from a Word document (.docx): returns questions for the editor to review
+app.post("/api/import/word", express.raw({ type: () => true, limit: "10mb" }), async (req, res) => {
+  try {
+    res.json(await importWord(req.body, String(req.get("x-file-name") || "")));
+  } catch (e) {
+    if (!e.status) console.error("Word import failed:", e);
+    res.status(e.status || 500).json({ error: e.status ? e.message : "This Word file couldn't be imported." });
+  }
+});
 
 // ---- question images (Neon Object Storage)
 app.get("/api/images/enabled", (req, res) => res.json({ enabled: storage.imagesEnabled() }));
@@ -219,7 +230,7 @@ app.use((err, req, res, next) => {
   if (res.headersSent) return next(err);
   const status = err.status || err.statusCode || 500;
   if (status >= 500) console.error(err);
-  const message = status === 400 ? "The request couldn't be read." : status === 413 ? "That file is too large. Images can be up to 2 MB." : status >= 500 ? "Something went wrong." : err.message;
+  const message = status === 400 ? "The request couldn't be read." : status === 413 ? (req.path.startsWith("/api/import") ? "That file is too large. Word files can be up to 10 MB." : "That file is too large. Images can be up to 2 MB.") : status >= 500 ? "Something went wrong." : err.message;
   res.status(status).json({ error: message });
 });
 
@@ -617,7 +628,7 @@ io.on("connection", (socket) => {
 
 server.listen(PORT, () => {
   console.log(`Aarambikallama running at http://localhost:${PORT}`);
-  console.log(aiEnabled() ? "  AI question generation: on (Grok)" : "  AI question generation: off (set XAI_API_KEY in .env)");
+  console.log(aiEnabled() ? `  AI question generation: on (${aiName()})` : "  AI question generation: off (set GROQ_API_KEY or XAI_API_KEY in .env)");
   checkMail();
   console.log(storage.imagesEnabled() ? "  Question images: on (Neon Object Storage)" : "  Question images: off (run `neon deploy` or set AWS_* for Neon Object Storage)");
   for (const addrs of Object.values(os.networkInterfaces()))
