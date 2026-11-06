@@ -146,7 +146,7 @@ Other providers: Outlook `smtp-mail.outlook.com:587`, Yahoo `smtp.mail.yahoo.com
 | Variable | Required | Meaning |
 |---|---|---|
 | `NODE_ENV` | ✅ `production` | Secure cookies, HSTS, trusts the host's proxy, requires email |
-| `DATA_DIR` | ✅ | Path on the persistent disk, e.g. `/data` |
+| `DATA_DIR` | ✅ | Path on the persistent disk, e.g. `/data`. If it can't be written (a Render free instance has no disk), the app falls back to a temporary folder and logs a warning; accounts and quizzes are then lost on every redeploy or restart |
 | `BREVO_API_KEY` | ✅ one of these two | Email for login codes over HTTPS (needed on Render's free plan) |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | ✅ one of these two | Email for login codes over SMTP |
 | `MAIL_FROM` | recommended | Sender shown in the inbox, e.g. `Aarambikallama <you@gmail.com>` |
