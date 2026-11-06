@@ -9,6 +9,7 @@ const { file, readJson, writeJson, newId } = require("./lib/store");
 const { authRouter, requireTeacher, userFromCookieHeader } = require("./lib/auth");
 const { aiEnabled, generateQuestions } = require("./lib/ai");
 const { checkMail, assertMailForProduction } = require("./lib/mailer");
+const storage = require("./lib/storage");
 assertMailForProduction();
 
 const PORT = Number(process.env.PORT) || 3000;
@@ -72,7 +73,7 @@ function sampleQuiz() {
   };
 }
 
-function cleanQuiz(body) {
+function cleanQuiz(body, ownerId) {
   const title = String(body?.title ?? "").trim().slice(0, 120);
   if (!title) throw new Error("Give the quiz a title.");
   const raw = Array.isArray(body?.questions) ? body.questions : [];
@@ -90,7 +91,9 @@ function cleanQuiz(body) {
       throw new Error(`Question ${n} needs a correct answer selected.`);
     const t = Number(q?.timeLimit);
     const timeLimit = Number.isFinite(t) ? Math.min(120, Math.max(5, Math.round(t))) : 20;
-    return { text, options, correctIndex, timeLimit };
+    // Optional picture: only an object key this teacher uploaded (see POST /api/images).
+    const image = storage.ownsKey(ownerId, q?.image) ? q.image : undefined;
+    return { text, options, correctIndex, timeLimit, ...(image && { image }) };
   });
   return { title, questions };
 }
@@ -119,7 +122,20 @@ app.get("/api/avatars", (req, res) => res.json({ avatars: AVATARS }));
 app.get("/api/sounds", (req, res) => res.json(SOUNDS));
 
 app.use("/api/auth", authRouter({ onSignup, aiEnabled }));
-app.use(["/api/quizzes", "/api/reports", "/api/ai"], requireTeacher);
+app.use(["/api/quizzes", "/api/reports", "/api/ai", "/api/images"], requireTeacher);
+
+// ---- question images (Neon Object Storage)
+app.get("/api/images/enabled", (req, res) => res.json({ enabled: storage.imagesEnabled() }));
+app.post("/api/images", express.raw({ type: () => true, limit: storage.MAX_BYTES + 1024 }), async (req, res) => {
+  if (!storage.imagesEnabled()) return res.status(503).json({ error: "Image uploads are off on this server." });
+  try {
+    const key = await storage.saveImage(req.user.id, req.body);
+    res.status(201).json({ key, url: await storage.imageUrl(key) });
+  } catch (e) {
+    if (!e.status) console.error("Image upload failed:", e.message);
+    res.status(e.status || 502).json({ error: e.status ? e.message : "The image couldn't be saved. Try again." });
+  }
+});
 
 const summary = (q) => ({ id: q.id, title: q.title, questionCount: q.questions.length, updatedAt: q.updatedAt });
 const ownQuiz = (req) => quizzes.find((q) => q.id === req.params.id && q.ownerId === req.user.id);
@@ -128,13 +144,15 @@ const ownReports = (req) => reports.filter((r) => r.ownerId === req.user.id);
 app.get("/api/quizzes", (req, res) =>
   res.json(quizzes.filter((q) => q.ownerId === req.user.id).map(summary).sort((a, b) => b.updatedAt - a.updatedAt)),
 );
-app.get("/api/quizzes/:id", (req, res) => {
+app.get("/api/quizzes/:id", async (req, res) => {
   const quiz = ownQuiz(req);
-  quiz ? res.json(quiz) : res.status(404).json({ error: "Quiz not found" });
+  if (!quiz) return res.status(404).json({ error: "Quiz not found" });
+  const questions = await Promise.all(quiz.questions.map(async (q) => (q.image ? { ...q, imageUrl: await storage.imageUrl(q.image).catch(() => null) } : q)));
+  res.json({ ...quiz, questions });
 });
 app.post("/api/quizzes", (req, res) => {
   try {
-    const quiz = { id: newId(), ownerId: req.user.id, ...cleanQuiz(req.body), createdAt: Date.now(), updatedAt: Date.now() };
+    const quiz = { id: newId(), ownerId: req.user.id, ...cleanQuiz(req.body, req.user.id), createdAt: Date.now(), updatedAt: Date.now() };
     quizzes.push(quiz);
     saveQuizzes();
     res.status(201).json(quiz);
@@ -146,7 +164,7 @@ app.put("/api/quizzes/:id", (req, res) => {
   const quiz = ownQuiz(req);
   if (!quiz) return res.status(404).json({ error: "Quiz not found" });
   try {
-    Object.assign(quiz, cleanQuiz(req.body), { updatedAt: Date.now() });
+    Object.assign(quiz, cleanQuiz(req.body, req.user.id), { updatedAt: Date.now() });
     saveQuizzes();
     res.json(quiz);
   } catch (e) {
@@ -201,7 +219,8 @@ app.use((err, req, res, next) => {
   if (res.headersSent) return next(err);
   const status = err.status || err.statusCode || 500;
   if (status >= 500) console.error(err);
-  res.status(status).json({ error: status === 400 ? "The request couldn't be read." : status >= 500 ? "Something went wrong." : err.message });
+  const message = status === 400 ? "The request couldn't be read." : status === 413 ? "That file is too large. Images can be up to 2 MB." : status >= 500 ? "Something went wrong." : err.message;
+  res.status(status).json({ error: message });
 });
 
 // ---------------------------------------------------------------- games
@@ -267,6 +286,7 @@ function publicQuestion(q, index, startedAt) {
     text: q.text,
     options: q.options,
     timeLimit: q.timeLimit,
+    imageUrl: storage.cachedUrl(q.image),
     remainingMs: Math.max(0, q.timeLimit * 1000 - (Date.now() - startedAt)),
   };
 }
@@ -454,11 +474,12 @@ io.on("connection", (socket) => {
     pushHost(g);
   }
 
-  socket.on("host:create", ({ quizId, mode } = {}, ack) => {
+  socket.on("host:create", async ({ quizId, mode } = {}, ack) => {
     const user = userFromCookieHeader(socket.handshake.headers.cookie);
     if (!user) return reply(ack, { error: "Please log in to host a game.", needLogin: true });
     const quiz = quizzes.find((q) => q.id === quizId && q.ownerId === user.id);
     if (!quiz) return reply(ack, { error: "Quiz not found" });
+    await storage.warmUrls(quiz.questions.map((q) => q.image)); // sign image links before the game shows them
     const g = {
       code: newCode(),
       hostKey: crypto.randomBytes(16).toString("hex"),
@@ -598,6 +619,7 @@ server.listen(PORT, () => {
   console.log(`Aarambikallama running at http://localhost:${PORT}`);
   console.log(aiEnabled() ? "  AI question generation: on (Grok)" : "  AI question generation: off (set XAI_API_KEY in .env)");
   checkMail();
+  console.log(storage.imagesEnabled() ? "  Question images: on (Neon Object Storage)" : "  Question images: off (run `neon deploy` or set AWS_* for Neon Object Storage)");
   for (const addrs of Object.values(os.networkInterfaces()))
     for (const a of addrs ?? [])
       if (a.family === "IPv4" && !a.internal) console.log(`  On your network: http://${a.address}:${PORT}`);

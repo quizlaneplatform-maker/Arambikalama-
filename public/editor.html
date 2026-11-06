@@ -81,6 +81,64 @@
     }
     api("/api/auth/me").then((me) => aiPanel(me.aiEnabled));
 
+    // ---- question pictures (stored in Neon Object Storage; the server keeps only the key)
+    let imagesOn = false;
+    api("/api/images/enabled").then((r) => { imagesOn = r.enabled; if (questions.length) render(); }).catch(() => {});
+
+    /** Big photos are scaled down to 1600px JPEG in the browser so uploads stay under the 2 MB limit. */
+    async function shrink(file) {
+      if (file.type === "image/gif" || file.size <= 600 * 1024) return file;
+      let bmp;
+      try { bmp = await createImageBitmap(file); }
+      catch { throw new Error("This picture's format isn't supported. Use a JPEG, PNG, GIF or WebP image."); }
+      const scale = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+      const c = document.createElement("canvas");
+      c.width = Math.round(bmp.width * scale);
+      c.height = Math.round(bmp.height * scale);
+      const ctx = c.getContext("2d");
+      ctx.fillStyle = "#fff"; // transparent PNGs get a white background in JPEG
+      ctx.fillRect(0, 0, c.width, c.height);
+      ctx.drawImage(bmp, 0, 0, c.width, c.height);
+      return new Promise((resolve) => c.toBlob(resolve, "image/jpeg", 0.85));
+    }
+
+    function imageField(q, qi) {
+      if (!imagesOn) return null;
+      const status = h("span", { class: "muted small", role: "status" });
+      const input = h("input", {
+        type: "file", accept: "image/jpeg,image/png,image/gif,image/webp", class: "visually-hidden", tabindex: "-1", "aria-hidden": "true",
+        onchange: async (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+          pick.disabled = true;
+          status.className = "muted small";
+          status.textContent = "Uploading picture…";
+          try {
+            const body = await shrink(file);
+            const res = await fetch("/api/images", { method: "POST", headers: { "Content-Type": body.type || "application/octet-stream" }, body });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || `Upload failed (${res.status}).`);
+            q.image = data.key;
+            q.imageUrl = data.url;
+            render();
+          } catch (err) {
+            status.className = "error small";
+            status.textContent = err.message;
+            pick.disabled = false;
+            input.value = "";
+          }
+        },
+      });
+      const pick = h("button", { type: "button", class: "btn-ghost btn-sm", "aria-label": `${q.image ? "Replace" : "Add a"} picture for question ${qi + 1}`, onclick: () => input.click() }, q.image ? "Replace picture" : "🖼 Add picture");
+      return h("div", { class: "q-image-field" },
+        q.imageUrl ? h("img", { class: "q-image-preview", src: q.imageUrl, alt: `Picture for question ${qi + 1}` }) : null,
+        h("div", { class: "row" },
+          pick,
+          q.image && h("button", { type: "button", class: "btn-ghost btn-sm", onclick: () => { delete q.image; delete q.imageUrl; render(); } }, "Remove picture"),
+          status),
+        input);
+    }
+
     let questions = [];
     const blank = () => ({ text: "", options: ["", "", "", ""], correctIndex: 0, timeLimit: 20 });
     const TIMES = [5, 10, 20, 30, 45, 60, 90, 120];
@@ -107,6 +165,7 @@
               ),
             ),
             h("textarea", { rows: "2", maxlength: "300", placeholder: "Type your question", "aria-label": `Question ${qi + 1} text`, oninput: (e) => (q.text = e.target.value) }, q.text),
+            imageField(q, qi),
             h("div", { class: "muted small" }, "Select the circle next to the correct answer."),
             ...q.options.map((opt, oi) =>
               h(

@@ -6,12 +6,17 @@
   "private": true,
   "scripts": {
     "start": "node --env-file-if-exists=.env start.js",
-    "dev": "node --watch --env-file-if-exists=.env start.js"
+    "dev": "node --watch --env-file-if-exists=.env start.js",
+    "build": "node scripts/check.js"
   },
   "engines": {
     "node": ">=22"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1163.0",
+    "@aws-sdk/s3-request-presigner": "^3.1163.0",
+    "@neon/config": "^1.11.3",
+    "@neon/env": "^1.6.15",
     "express": "^4.21.2",
     "nodemailer": "^10.3.1",
     "pg": "^8.23.1",

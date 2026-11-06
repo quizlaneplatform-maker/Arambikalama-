@@ -98,6 +98,7 @@
           !revealing && timer.el,
           !revealing && s.waitingFor?.length ? h("p", { class: "muted", style: "text-align:center;margin:0" }, "⏳ Waiting for ", h("strong", null, s.waitingFor.join(", ")), " to answer before revealing") : null,
           h("div", { class: "question-text" }, q.text),
+          q.imageUrl ? h("img", { class: "q-image", src: q.imageUrl, alt: "Picture for this question" }) : null,
           h("div", { class: "options" },
             q.options.map((o, i) =>
               h("div", { class: `opt opt-${i}${revealing && i !== q.correctIndex ? " dim" : ""}` },

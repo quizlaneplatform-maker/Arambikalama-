@@ -127,6 +127,7 @@
         h("div", { class: "row spread" }, h("span", { class: "pill" }, `${q.index + 1} / ${s.total}`), s.streak >= 2 ? h("strong", null, `🔥 ${s.streak} streak`) : ""),
         timer.el,
         h("div", { class: "question-text" }, q.text),
+          q.imageUrl ? h("img", { class: "q-image", src: q.imageUrl, alt: "Picture for this question" }) : null,
         h("div", { class: "options" },
           q.options.map((o, i) => h("button", { class: `opt opt-${i}`, onclick: () => pick(i) }, h("span", { class: "shape" }, SHAPES[i]), o)))));
       const stopCountdown = timer.start();

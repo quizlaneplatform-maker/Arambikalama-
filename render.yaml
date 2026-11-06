@@ -23,6 +23,16 @@ services:
       # stored there instead of DATA_DIR. See DEPLOYMENT.md, "Free database (Neon)".
       - key: DATABASE_URL
         sync: false
+      # Question images in Neon Object Storage (bucket "assets" from neon.ts). Copy these from the
+      # production branch: `neon env pull --branch production` writes them to .env.
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_ENDPOINT_URL_S3
+        sync: false
+      - key: AWS_REGION
+        sync: false
       - key: NODE_VERSION
         value: "22"
       # Email for login codes. Brevo (HTTPS) works on every plan; Render's free plan blocks the
