@@ -2,11 +2,11 @@
   "name": "aarambikallama",
   "version": "1.0.0",
   "description": "Live and self-paced classroom quiz platform",
-  "main": "server.js",
+  "main": "start.js",
   "private": true,
   "scripts": {
-    "start": "node --env-file-if-exists=.env server.js",
-    "dev": "node --watch --env-file-if-exists=.env server.js"
+    "start": "node --env-file-if-exists=.env start.js",
+    "dev": "node --watch --env-file-if-exists=.env start.js"
   },
   "engines": {
     "node": ">=22"
@@ -14,6 +14,7 @@
   "dependencies": {
     "express": "^4.21.2",
     "nodemailer": "^10.3.1",
+    "pg": "^8.23.1",
     "socket.io": "^4.8.1"
   }
 }

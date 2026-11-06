@@ -19,6 +19,10 @@ services:
         value: production
       - key: DATA_DIR
         value: /data
+      # Free plan (no disk): paste a free Neon Postgres connection string here and data is
+      # stored there instead of DATA_DIR. See DEPLOYMENT.md, "Free database (Neon)".
+      - key: DATABASE_URL
+        sync: false
       - key: NODE_VERSION
         value: "22"
       # Email for login codes. Brevo (HTTPS) works on every plan; Render's free plan blocks the

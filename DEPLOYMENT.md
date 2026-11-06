@@ -5,7 +5,7 @@ Aarambikallama is one Node.js process that serves the website, the API and the l
 | Needs | Why |
 |---|---|
 | A **long-running server** (not "serverless") | Live games use WebSockets and keep game state in memory |
-| A **persistent disk** | Users, quizzes, reports and sessions are files in `DATA_DIR` |
+| A **persistent disk** *or* a **database** | Users, quizzes, reports and sessions are files in `DATA_DIR`, or rows in Postgres when `DATABASE_URL` is set (a free Neon database works; see "Free database (Neon)") |
 | **Exactly 1 instance** | Games, login codes and rate limits live in that one process; 2+ instances would split them |
 | **HTTPS** | Login cookies are marked `Secure` in production |
 
@@ -113,6 +113,20 @@ quiz.yourschool.org {
 
 ---
 
+## Free database (Neon)
+
+Render's free plan has no disk, so files are wiped on every redeploy or restart (and a free service restarts after sleeping). Store the data in a free Neon Postgres database instead:
+
+1. Sign up at https://neon.com (free plan) and **create a project**. Pick the region closest to your Render service (e.g. Singapore → `AWS Asia Pacific (Singapore)`).
+2. On the project dashboard click **Connect**, and copy the connection string. It looks like
+   `postgresql://neondb_owner:...@ep-....aws.neon.tech/neondb?sslmode=require`.
+3. On Render → your service → **Environment**, add `DATABASE_URL` = that string. Save; Render redeploys.
+4. The log should say `Data: Postgres database (...)`. Sign up, create a quiz, then **Manual Deploy → Deploy latest commit**: the quiz should still be there.
+
+The app creates its one table (`app_data`) by itself. With `DATABASE_URL` set, `DATA_DIR` is only used to import old JSON files once into an empty database.
+
+---
+
 ## Email setup
 
 **On Render's free plan, Gmail will not work.** Since September 2025, Render's free web services block outgoing traffic on the SMTP ports (25, 465, 587), so login codes never arrive and the log shows a timeout. Use Brevo, which sends over HTTPS, or upgrade the service to a paid instance.
@@ -146,7 +160,8 @@ Other providers: Outlook `smtp-mail.outlook.com:587`, Yahoo `smtp.mail.yahoo.com
 | Variable | Required | Meaning |
 |---|---|---|
 | `NODE_ENV` | ✅ `production` | Secure cookies, HSTS, trusts the host's proxy, requires email |
-| `DATA_DIR` | ✅ | Path on the persistent disk, e.g. `/data`. If it can't be written (a Render free instance has no disk), the app falls back to a temporary folder and logs a warning; accounts and quizzes are then lost on every redeploy or restart |
+| `DATABASE_URL` | ✅ on hosts without a disk | Postgres connection string (free Neon works). When set, data is stored there instead of files |
+| `DATA_DIR` | ✅ with a disk | Path on the persistent disk, e.g. `/data`. If it can't be written (a Render free instance has no disk), the app falls back to a temporary folder and logs a warning; accounts and quizzes are then lost on every redeploy or restart |
 | `BREVO_API_KEY` | ✅ one of these two | Email for login codes over HTTPS (needed on Render's free plan) |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | ✅ one of these two | Email for login codes over SMTP |
 | `MAIL_FROM` | recommended | Sender shown in the inbox, e.g. `Aarambikallama <you@gmail.com>` |
@@ -160,7 +175,7 @@ Other providers: Outlook `smtp-mail.outlook.com:587`, Yahoo `smtp.mail.yahoo.com
 
 ## Keeping it healthy
 
-- **Backups:** copy the `DATA_DIR` folder regularly (users, quizzes, reports, sessions). On Render or Railway, download it from the disk/volume; on a VPS, use a daily `cron` + `tar`.
+- **Backups:** with Neon, use its built-in restore (point-in-time history). With files, copy the `DATA_DIR` folder regularly (users, quizzes, reports, sessions). On Render or Railway, download it from the disk/volume; on a VPS, use a daily `cron` + `tar`.
 - **Updates:** push to GitHub and the host redeploys. A restart ends games in progress, so deploy outside class time.
 - **Logs:** the host's log view shows startup status (`Login codes: emailed via…`, `AI question generation: on/off`) and any errors.
 - **Secrets:** never commit `.env`. If a key or password was ever shared or committed, revoke it and make a new one (xAI console, Google App Passwords).
