@@ -113,7 +113,25 @@ quiz.yourschool.org {
 
 ---
 
-## Email setup (Gmail)
+## Email setup
+
+**On Render's free plan, Gmail will not work.** Since September 2025, Render's free web services block outgoing traffic on the SMTP ports (25, 465, 587), so login codes never arrive and the log shows a timeout. Use Brevo, which sends over HTTPS, or upgrade the service to a paid instance.
+
+### Brevo (works on any host, free for 300 emails a day)
+
+1. Sign up at https://www.brevo.com (free plan).
+2. **Senders, Domains & Dedicated IPs → Senders → Add a sender** with your Gmail address, then click the link Brevo emails you. No domain needed.
+3. https://app.brevo.com/settings/keys/api → **Generate a new API key** → copy it.
+4. On Render → your service → **Environment**, set:
+   ```
+   BREVO_API_KEY=xkeysib-...
+   MAIL_FROM=Aarambikallama <the-sender-you-verified@gmail.com>
+   ```
+   Save. Render redeploys. The log should then say `Login codes: emailed via Brevo`.
+
+When `BREVO_API_KEY` is set it is used instead of the SMTP settings, so you can leave `SMTP_*` in place.
+
+### Gmail (SMTP: paid hosts, or running on your own computer)
 
 1. https://myaccount.google.com/security → turn on **2-Step Verification**.
 2. https://myaccount.google.com/apppasswords → create one named "Aarambikallama" → copy the 16 characters (no spaces).
@@ -129,7 +147,8 @@ Other providers: Outlook `smtp-mail.outlook.com:587`, Yahoo `smtp.mail.yahoo.com
 |---|---|---|
 | `NODE_ENV` | ✅ `production` | Secure cookies, HSTS, trusts the host's proxy, requires email |
 | `DATA_DIR` | ✅ | Path on the persistent disk, e.g. `/data` |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | ✅ | Email for login codes |
+| `BREVO_API_KEY` | ✅ one of these two | Email for login codes over HTTPS (needed on Render's free plan) |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | ✅ one of these two | Email for login codes over SMTP |
 | `MAIL_FROM` | recommended | Sender shown in the inbox, e.g. `Aarambikallama <you@gmail.com>` |
 | `XAI_API_KEY` | optional | Turns on AI question generation |
 | `XAI_MODEL` | optional | Grok model (default `grok-4.7`) |

@@ -21,6 +21,10 @@ services:
         value: /data
       - key: NODE_VERSION
         value: "22"
+      # Email for login codes. Brevo (HTTPS) works on every plan; Render's free plan blocks the
+      # SMTP ports Gmail uses. Set BREVO_API_KEY + MAIL_FROM, or the SMTP_* values below.
+      - key: BREVO_API_KEY
+        sync: false
       - key: SMTP_HOST
         value: smtp.gmail.com
       - key: SMTP_PORT
